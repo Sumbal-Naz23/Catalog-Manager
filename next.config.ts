@@ -1,4 +1,9 @@
 import type { NextConfig } from "next";
+const withPWA = require("next-pwa")({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+});
 
 const nextConfig: NextConfig = {
   images: {
@@ -12,4 +17,4 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["mongoose"],
 };
 
-export default nextConfig;
+export default withPWA(nextConfig);
