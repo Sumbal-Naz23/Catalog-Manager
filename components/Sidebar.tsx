@@ -252,9 +252,12 @@ export default function Sidebar({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                       </svg>
 
-                      <span className="flex-1 text-sm font-light truncate tracking-wide">
+                      {/* <span className="flex-1 text-sm font-light truncate tracking-wide text-white">
                         {folder.name}
-                      </span>
+                      </span> */}
+                      <span className="flex-1 text-sm font-light truncate tracking-wide text-gray-300 group-hover:text-gray-100">
+  {folder.name}
+</span>
 
                       <div
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-white hover:text-[#D4AF37]"
