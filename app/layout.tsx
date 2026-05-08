@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "D.K Collection — Luxury Catalog",
-  description: "Luxury in Every Detail. Manage your premium product catalog.",
+  title: "D.K Collection — Catalog Manager",
+  description: "Manage your premium product catalog.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
