@@ -11,7 +11,7 @@ import { useImages } from "@/hooks/useImages";
 
 export default function DashboardPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;

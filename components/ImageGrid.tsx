@@ -15,7 +15,7 @@ interface ImageGridProps {
 
 // ─── Shared price formatter ───────────────────────────────────────────────────
 function formatPrice(price: number) {
-  return "Rs " + price.toLocaleString("en-IN");
+  return "Rs = " + price.toLocaleString("en-IN");
 }
 
 // ─── Upload Modal ─────────────────────────────────────────────────────────────
@@ -84,10 +84,10 @@ function UploadModal({ files, onConfirm, onCancel }: UploadModalProps) {
               Product Price <span className="text-gray-300 font-light normal-case tracking-normal">(optional)</span>
             </label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-light">Rs</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-light">Rs =</span>
               <input type="number" min="0" step="0.01" value={productPrice} onChange={(e) => setProductPrice(e.target.value)}
                 placeholder="0"
-                className="w-full border border-gray-200 pl-10 pr-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light" />
+                className="w-full border border-gray-200 pl-14 pr-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light" />
             </div>
           </div>
           <div className="flex gap-3 pt-2">
@@ -198,10 +198,10 @@ function EditModal({ image, onConfirm, onCancel }: EditModalProps) {
           <div>
             <label className="block text-[10px] font-medium text-gray-500 tracking-[0.15em] uppercase mb-2">Product Price</label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-light">Rs</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-light">Rs =</span>
               <input type="number" min="0" step="0.01" value={productPrice} onChange={(e) => setProductPrice(e.target.value)}
                 placeholder="0"
-                className="w-full border border-gray-200 pl-10 pr-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light" />
+                className="w-full border border-gray-200 pl-14 pr-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light" />
             </div>
           </div>
           <div className="flex gap-3 pt-2">
