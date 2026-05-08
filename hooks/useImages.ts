@@ -9,6 +9,8 @@ export interface CatalogImage {
   publicId: string;
   width: number;
   height: number;
+  productName?: string;
+  productPrice?: number | null;
   createdAt: string;
 }
 
@@ -41,13 +43,15 @@ export function useImages(folderId: string | null) {
     fetchImages();
   }, [fetchImages]);
 
-  const uploadImages = async (files: File[]): Promise<void> => {
+  const uploadImages = async (files: File[], productName?: string, productPrice?: number | null): Promise<void> => {
     if (!folderId) throw new Error("No folder selected");
     try {
       setUploading(true);
       const formData = new FormData();
       formData.append("folderId", folderId);
       files.forEach((file) => formData.append("images", file));
+      if (productName) formData.append("productName", productName);
+      if (productPrice != null) formData.append("productPrice", String(productPrice));
 
       const res = await fetch("/api/images/upload", {
         method: "POST",

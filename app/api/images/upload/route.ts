@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import Image from "@/models/Image";
+import Image, { IImage } from "@/models/Image";
 import cloudinary from "@/lib/cloudinary";
+import { HydratedDocument } from "mongoose";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,6 +11,9 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const folderId = formData.get("folderId") as string;
     const files = formData.getAll("images") as File[];
+    const productName = (formData.get("productName") as string) || "";
+    const productPriceRaw = formData.get("productPrice") as string;
+    const productPrice = productPriceRaw ? parseFloat(productPriceRaw) : null;
 
     if (!folderId) {
       return NextResponse.json({ error: "folderId is required" }, { status: 400 });
@@ -19,7 +23,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No images provided" }, { status: 400 });
     }
 
-    const uploadedImages = [];
+    const uploadedImages: HydratedDocument<IImage>[] = [];
 
     for (const file of files) {
       const bytes = await file.arrayBuffer();
@@ -53,6 +57,8 @@ export async function POST(req: NextRequest) {
         publicId: result.public_id,
         width: result.width,
         height: result.height,
+        productName: productName || "",
+        productPrice: productPrice ?? null,
       });
 
       uploadedImages.push(image);

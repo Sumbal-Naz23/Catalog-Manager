@@ -73,9 +73,9 @@ export default function DashboardPage() {
     });
   };
 
-  const handleUpload = async (files: File[]) => {
+  const handleUpload = async (files: File[], productName?: string, productPrice?: number | null) => {
     try {
-      await uploadImages(files);
+      await uploadImages(files, productName, productPrice);
       addToast("success", `${files.length} image${files.length > 1 ? "s" : ""} uploaded`);
     } catch (err) {
       addToast("error", err instanceof Error ? err.message : "Upload failed");

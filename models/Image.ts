@@ -6,6 +6,8 @@ export interface IImage extends Document {
   publicId: string;
   width: number;
   height: number;
+  productName?: string;
+  productPrice?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +29,8 @@ const ImageSchema = new Schema<IImage>(
     },
     width: { type: Number, default: 0 },
     height: { type: Number, default: 0 },
+    productName: { type: String, default: "" },
+    productPrice: { type: Number, default: null, required: false },
   },
   { timestamps: true }
 );

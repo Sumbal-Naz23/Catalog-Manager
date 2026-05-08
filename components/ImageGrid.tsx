@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { CatalogImage } from "@/hooks/useImages";
 
@@ -8,9 +8,333 @@ interface ImageGridProps {
   images: CatalogImage[];
   loading: boolean;
   uploading: boolean;
-  onUpload: (files: File[]) => Promise<void>;
+  onUpload: (files: File[], productName?: string, productPrice?: number | null) => Promise<void>;
   onDelete: (id: string) => void;
 }
+
+// ─── Upload Modal ────────────────────────────────────────────────────────────
+
+interface UploadModalProps {
+  files: File[];
+  onConfirm: (productName: string, productPrice: number | null) => void;
+  onCancel: () => void;
+}
+
+function UploadModal({ files, onConfirm, onCancel }: UploadModalProps) {
+  const [productName, setProductName] = useState("");
+  const [productPrice, setProductPrice] = useState("");
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const price = productPrice.trim() ? parseFloat(productPrice) : null;
+    onConfirm(productName.trim(), price);
+  };
+
+  const previews = files.slice(0, 4);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-fade-in-scale">
+      <div
+        className="bg-white w-full max-w-md shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+          <div>
+            <h2 className="text-sm font-semibold text-black tracking-wide">Upload Images</h2>
+            <p className="text-xs text-gray-400 font-light mt-0.5">
+              {files.length} file{files.length !== 1 ? "s" : ""} selected
+            </p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="w-8 h-8 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-black hover:border-gray-400 transition-all duration-200"
+            aria-label="Cancel"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Image previews */}
+        <div className="px-6 pt-5">
+          <div className="flex gap-2">
+            {previews.map((file, i) => {
+              const url = URL.createObjectURL(file);
+              return (
+                <div key={i} className="relative w-16 h-16 bg-gray-100 overflow-hidden flex-shrink-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="w-full h-full object-cover" onLoad={() => URL.revokeObjectURL(url)} />
+                </div>
+              );
+            })}
+            {files.length > 4 && (
+              <div className="w-16 h-16 bg-gray-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-xs text-gray-500 font-medium">+{files.length - 4}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Gold divider */}
+        <div className="divider-gold mx-6 mt-5" />
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          <div>
+            <label className="block text-[10px] font-medium text-gray-500 tracking-[0.15em] uppercase mb-2">
+              Product Name <span className="text-gray-300 font-light normal-case tracking-normal">(optional)</span>
+            </label>
+            <input
+              ref={nameRef}
+              type="text"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              placeholder="e.g. Silk Evening Gown"
+              className="w-full border border-gray-200 px-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-medium text-gray-500 tracking-[0.15em] uppercase mb-2">
+              Product Price <span className="text-gray-300 font-light normal-case tracking-normal">(optional)</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-light">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={productPrice}
+                onChange={(e) => setProductPrice(e.target.value)}
+                placeholder="0.00"
+                className="w-full border border-gray-200 pl-8 pr-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 py-2.5 border border-gray-200 text-xs font-medium tracking-[0.1em] uppercase text-gray-500 hover:border-gray-400 hover:text-black transition-all duration-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-2.5 bg-black text-white text-xs font-medium tracking-[0.1em] uppercase hover:bg-[#D4AF37] hover:text-black transition-all duration-300"
+            >
+              Upload
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Carousel Lightbox ───────────────────────────────────────────────────────
+
+interface LightboxProps {
+  images: CatalogImage[];
+  initialIndex: number;
+  onClose: () => void;
+}
+
+function Lightbox({ images, initialIndex, onClose }: LightboxProps) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [direction, setDirection] = useState<"left" | "right" | null>(null);
+  const [animating, setAnimating] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const current = images[currentIndex];
+
+  const navigate = useCallback(
+    (dir: "prev" | "next") => {
+      if (animating || images.length <= 1) return;
+      setDirection(dir === "next" ? "left" : "right");
+      setAnimating(true);
+      setTimeout(() => {
+        setCurrentIndex((i) =>
+          dir === "next" ? (i + 1) % images.length : (i - 1 + images.length) % images.length
+        );
+        setDirection(null);
+        setAnimating(false);
+      }, 280);
+    },
+    [animating, images.length]
+  );
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") navigate("next");
+      if (e.key === "ArrowLeft") navigate("prev");
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navigate, onClose]);
+
+  // Touch / swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+      navigate(dx < 0 ? "next" : "prev");
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
+  const slideClass = animating
+    ? direction === "left"
+      ? "translate-x-[-6%] opacity-0"
+      : "translate-x-[6%] opacity-0"
+    : "translate-x-0 opacity-100";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/96 flex flex-col items-center justify-center animate-fade-in"
+      onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Close */}
+      <button
+        onClick={onClose}
+        className="absolute top-5 right-5 w-10 h-10 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/60 transition-all duration-200 z-10"
+        aria-label="Close"
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+
+      {/* Counter */}
+      <div className="absolute top-5 left-1/2 -translate-x-1/2 text-white/40 text-xs tracking-[0.2em] font-light z-10">
+        {currentIndex + 1} / {images.length}
+      </div>
+
+      {/* Gold corner accents */}
+      <div className="absolute top-5 left-5 w-8 h-8 border-t border-l border-[#D4AF37]/40 pointer-events-none" />
+      <div className="absolute bottom-5 right-5 w-8 h-8 border-b border-r border-[#D4AF37]/40 pointer-events-none" />
+
+      {/* Prev button */}
+      {images.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate("prev"); }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/60 hover:bg-white/5 transition-all duration-200 z-10"
+          aria-label="Previous image"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+        </button>
+      )}
+
+      {/* Next button */}
+      {images.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate("next"); }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/60 hover:bg-white/5 transition-all duration-200 z-10"
+          aria-label="Next image"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </button>
+      )}
+
+      {/* Main image */}
+      <div
+        className="relative w-full h-full flex items-center justify-center px-16 py-20"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className={`relative max-w-4xl max-h-full w-full h-full transition-all duration-[280ms] ease-in-out ${slideClass}`}
+        >
+          <Image
+            src={current.url}
+            alt={current.productName || "Catalog item"}
+            fill
+            className="object-contain"
+            sizes="90vw"
+            priority
+          />
+        </div>
+      </div>
+
+      {/* Product info bar */}
+      {(current.productName || current.productPrice != null) && (
+        <div
+          className="absolute bottom-16 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 bg-black/70 border border-white/10 backdrop-blur-sm"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {current.productName && (
+            <span className="text-white text-sm font-light tracking-wide">{current.productName}</span>
+          )}
+          {current.productName && current.productPrice != null && (
+            <span className="w-px h-4 bg-white/20" />
+          )}
+          {current.productPrice != null && (
+            <span className="text-[#D4AF37] text-sm font-medium tracking-wide">
+              ${current.productPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Thumbnail strip */}
+      {images.length > 1 && (
+        <div
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 max-w-[90vw] overflow-x-auto pb-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {images.map((img, i) => (
+            <button
+              key={img._id}
+              onClick={() => {
+                if (i === currentIndex || animating) return;
+                setDirection(i > currentIndex ? "left" : "right");
+                setAnimating(true);
+                setTimeout(() => {
+                  setCurrentIndex(i);
+                  setDirection(null);
+                  setAnimating(false);
+                }, 280);
+              }}
+              className={`relative w-10 h-10 flex-shrink-0 overflow-hidden transition-all duration-200 ${
+                i === currentIndex
+                  ? "ring-1 ring-[#D4AF37] opacity-100"
+                  : "opacity-40 hover:opacity-70"
+              }`}
+              aria-label={`Go to image ${i + 1}`}
+            >
+              <Image src={img.url} alt="" fill className="object-cover" sizes="40px" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main ImageGrid ──────────────────────────────────────────────────────────
 
 export default function ImageGrid({
   images,
@@ -20,7 +344,8 @@ export default function ImageGrid({
   onDelete,
 }: ImageGridProps) {
   const [dragActive, setDragActive] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<CatalogImage | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDrag = (e: React.DragEvent) => {
@@ -35,15 +360,22 @@ export default function ImageGrid({
     e.stopPropagation();
     setDragActive(false);
     const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
-    if (files.length > 0) await onUpload(files);
+    if (files.length > 0) setPendingFiles(files);
   };
 
   const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (files.length > 0) {
-      await onUpload(files);
+      setPendingFiles(files);
       e.target.value = "";
     }
+  };
+
+  const handleUploadConfirm = async (productName: string, productPrice: number | null) => {
+    if (!pendingFiles) return;
+    const files = pendingFiles;
+    setPendingFiles(null);
+    await onUpload(files, productName, productPrice);
   };
 
   if (loading) {
@@ -147,18 +479,32 @@ export default function ImageGrid({
               key={img._id}
               className="group relative aspect-square bg-gray-100 overflow-hidden cursor-pointer animate-fade-in"
               style={{ animationDelay: `${Math.min(index * 40, 400)}ms` }}
-              onClick={() => setSelectedImage(img)}
+              onClick={() => setLightboxIndex(index)}
             >
               <Image
                 src={img.url}
-                alt="Catalog item"
+                alt={img.productName || "Catalog item"}
                 fill
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
                 className="object-cover img-zoom"
               />
 
+              {/* Product info overlay at bottom */}
+              {(img.productName || img.productPrice != null) && (
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2.5 py-2 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+                  {img.productName && (
+                    <p className="text-white text-[11px] font-medium truncate leading-tight">{img.productName}</p>
+                  )}
+                  {img.productPrice != null && (
+                    <p className="text-[#D4AF37] text-[11px] font-medium leading-tight">
+                      ${img.productPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Hover overlay */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 overlay-fade flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 overlay-fade flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
                 {/* View icon */}
                 <div className="w-8 h-8 border border-white/60 flex items-center justify-center text-white">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -186,40 +532,22 @@ export default function ImageGrid({
         </div>
       )}
 
-      {/* Lightbox modal */}
-      {selectedImage && (
-        <div
-          className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 animate-fade-in-scale"
-          onClick={() => setSelectedImage(null)}
-        >
-          {/* Close */}
-          <button
-            onClick={() => setSelectedImage(null)}
-            className="absolute top-5 right-5 w-10 h-10 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/60 transition-all duration-200"
-            aria-label="Close"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+      {/* Upload modal */}
+      {pendingFiles && (
+        <UploadModal
+          files={pendingFiles}
+          onConfirm={handleUploadConfirm}
+          onCancel={() => setPendingFiles(null)}
+        />
+      )}
 
-          {/* Gold corner accents */}
-          <div className="absolute top-5 left-5 w-8 h-8 border-t border-l border-[#D4AF37]/40" />
-          <div className="absolute bottom-5 right-5 w-8 h-8 border-b border-r border-[#D4AF37]/40" />
-
-          <div
-            className="relative max-w-5xl max-h-[85vh] w-full h-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Image
-              src={selectedImage.url}
-              alt="Full size"
-              fill
-              className="object-contain"
-              sizes="90vw"
-            />
-          </div>
-        </div>
+      {/* Carousel lightbox */}
+      {lightboxIndex !== null && (
+        <Lightbox
+          images={images}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
     </div>
   );
