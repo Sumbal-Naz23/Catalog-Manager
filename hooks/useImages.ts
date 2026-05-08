@@ -78,5 +78,36 @@ export function useImages(folderId: string | null) {
     }
   };
 
-  return { images, loading, uploading, error, fetchImages, uploadImages, deleteImage };
+  const updateImage = async (
+    id: string,
+    updates: { productName?: string; productPrice?: number | null; file?: File }
+  ): Promise<void> => {
+    try {
+      let res: Response;
+      if (updates.file) {
+        const formData = new FormData();
+        formData.append("image", updates.file);
+        if (updates.productName !== undefined) formData.append("productName", updates.productName);
+        if (updates.productPrice !== undefined)
+          formData.append("productPrice", updates.productPrice == null ? "" : String(updates.productPrice));
+        res = await fetch(`/api/images/${id}`, { method: "PATCH", body: formData });
+      } else {
+        res = await fetch(`/api/images/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productName: updates.productName,
+            productPrice: updates.productPrice,
+          }),
+        });
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update image");
+      setImages((prev) => prev.map((img) => (img._id === id ? { ...img, ...data.image } : img)));
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  return { images, loading, uploading, error, fetchImages, uploadImages, deleteImage, updateImage };
 }

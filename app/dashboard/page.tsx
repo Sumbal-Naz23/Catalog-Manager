@@ -22,7 +22,7 @@ export default function DashboardPage() {
   }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
 
   const { folders, loading: foldersLoading, createFolder, renameFolder, deleteFolder } = useFolders();
-  const { images, loading: imagesLoading, uploading, uploadImages, deleteImage } = useImages(selectedFolderId);
+  const { images, loading: imagesLoading, uploading, uploadImages, deleteImage, updateImage } = useImages(selectedFolderId);
 
   const addToast = useCallback((type: ToastMessage["type"], message: string) => {
     const id = Math.random().toString(36).slice(2);
@@ -79,6 +79,19 @@ export default function DashboardPage() {
       addToast("success", `${files.length} image${files.length > 1 ? "s" : ""} uploaded`);
     } catch (err) {
       addToast("error", err instanceof Error ? err.message : "Upload failed");
+    }
+  };
+
+  const handleUpdateImage = async (
+    id: string,
+    updates: { productName?: string; productPrice?: number | null; file?: File }
+  ) => {
+    try {
+      await updateImage(id, updates);
+      addToast("success", "Image updated");
+    } catch (err) {
+      addToast("error", err instanceof Error ? err.message : "Failed to update image");
+      throw err;
     }
   };
 
@@ -209,6 +222,7 @@ export default function DashboardPage() {
             uploading={uploading}
             onUpload={handleUpload}
             onDelete={handleDeleteImage}
+            onUpdate={handleUpdateImage}
           />
         )}
       </div>
