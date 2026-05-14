@@ -40,7 +40,15 @@ const nextConfig: NextConfig = {
   },
   serverExternalPackages: ["mongoose"],
 
-  // 👇 IMPORTANT: Turbopack conflict avoid
+  // Raise the body size limit for API routes to 50 MB.
+  // Next.js defaults to 4 MB which causes a plain-text 413 response that
+  // breaks JSON.parse on the frontend.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "50mb",
+    },
+  },
+
   turbopack: {},
 };
 
