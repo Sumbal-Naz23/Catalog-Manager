@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
-import { CatalogImage } from "@/hooks/useImages";
+import { CatalogImage, UploadProgress } from "@/hooks/useImages";
 
 interface ImageGridProps {
   images: CatalogImage[];
   loading: boolean;
   uploading: boolean;
+  uploadProgress: UploadProgress[];
   onUpload: (files: File[], productName?: string, productPrice?: number | null) => Promise<void>;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: { productName?: string; productPrice?: number | null; file?: File }) => Promise<void>;
@@ -18,14 +19,16 @@ function formatPrice(price: number) {
   return "Rs = " + price.toLocaleString("en-IN");
 }
 
-// ─── Upload Modal ─────────────────────────────────────────────────────────────
+// ─── Upload Modal (with per-file progress) ───────────────────────────────────
 interface UploadModalProps {
   files: File[];
+  uploading: boolean;
+  progress: UploadProgress[];
   onConfirm: (productName: string, productPrice: number | null) => void;
   onCancel: () => void;
 }
 
-function UploadModal({ files, onConfirm, onCancel }: UploadModalProps) {
+function UploadModal({ files, uploading, progress, onConfirm, onCancel }: UploadModalProps) {
   const [productName, setProductName] = useState("");
   const [productPrice, setProductPrice] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
@@ -37,70 +40,147 @@ function UploadModal({ files, onConfirm, onCancel }: UploadModalProps) {
     onConfirm(productName.trim(), productPrice.trim() ? parseFloat(productPrice) : null);
   };
 
-  const previews = files.slice(0, 4);
+  // Instant object-URL previews — revoked after render
+  const previews = files.slice(0, 5).map((f) => ({ file: f, url: URL.createObjectURL(f) }));
+
+  const doneCount = progress.filter((p) => p.status === "done").length;
+  const errorCount = progress.filter((p) => p.status === "error").length;
+  const isActive = uploading;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-fade-in-scale">
-      <div className="bg-white w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+      <div className="bg-white w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 flex-shrink-0">
           <div>
             <h2 className="text-sm font-semibold text-black tracking-wide">Upload Images</h2>
-            <p className="text-xs text-gray-400 font-light mt-0.5">{files.length} file{files.length !== 1 ? "s" : ""} selected</p>
+            <p className="text-xs text-gray-400 font-light mt-0.5">
+              {isActive
+                ? `Uploading ${doneCount} of ${files.length}…`
+                : `${files.length} file${files.length !== 1 ? "s" : ""} selected`}
+            </p>
           </div>
-          <button onClick={onCancel} className="w-8 h-8 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-black hover:border-gray-400 transition-all duration-200" aria-label="Cancel">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+          {!isActive && (
+            <button onClick={onCancel} className="w-8 h-8 border border-gray-200 flex items-center justify-center text-gray-400 hover:text-black hover:border-gray-400 transition-all duration-200" aria-label="Cancel">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          )}
         </div>
-        <div className="px-6 pt-5">
-          <div className="flex gap-2">
-            {previews.map((file, i) => {
-              const url = URL.createObjectURL(file);
-              return (
-                <div key={i} className="relative w-16 h-16 bg-gray-100 overflow-hidden flex-shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt="" className="w-full h-full object-cover" onLoad={() => URL.revokeObjectURL(url)} />
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1">
+          {/* Image previews */}
+          <div className="px-6 pt-5">
+            <div className="flex gap-2 flex-wrap">
+              {previews.map(({ file, url }, i) => {
+                const prog = progress[i];
+                return (
+                  <div key={i} className="relative w-16 h-16 bg-gray-100 overflow-hidden flex-shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="w-full h-full object-cover" onLoad={() => URL.revokeObjectURL(url)} />
+                    {/* Status overlay */}
+                    {prog && (
+                      <div className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
+                        prog.status === "uploading" ? "bg-black/40" :
+                        prog.status === "done" ? "bg-emerald-500/60" :
+                        prog.status === "error" ? "bg-red-500/60" : ""
+                      }`}>
+                        {prog.status === "uploading" && (
+                          <svg className="w-5 h-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                          </svg>
+                        )}
+                        {prog.status === "done" && (
+                          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7"/>
+                          </svg>
+                        )}
+                        {prog.status === "error" && (
+                          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {files.length > 5 && (
+                <div className="w-16 h-16 bg-gray-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs text-gray-500 font-medium">+{files.length - 5}</span>
                 </div>
-              );
-            })}
-            {files.length > 4 && (
-              <div className="w-16 h-16 bg-gray-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-xs text-gray-500 font-medium">+{files.length - 4}</span>
+              )}
+            </div>
+
+            {/* Per-file error list */}
+            {errorCount > 0 && (
+              <div className="mt-3 space-y-1">
+                {progress.filter((p) => p.status === "error").map((p, i) => (
+                  <p key={i} className="text-[11px] text-red-500 font-light">{p.error}</p>
+                ))}
               </div>
             )}
           </div>
-        </div>
-        <div className="divider-gold mx-6 mt-5" />
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
-          <div>
-            <label className="block text-[10px] font-medium text-gray-500 tracking-[0.15em] uppercase mb-2">
-              Product Name <span className="text-gray-300 font-light normal-case tracking-normal">(optional)</span>
-            </label>
-            <input ref={nameRef} type="text" value={productName} onChange={(e) => setProductName(e.target.value)}
-              placeholder="e.g. Silk Evening Gown"
-              className="w-full border border-gray-200 px-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-medium text-gray-500 tracking-[0.15em] uppercase mb-2">
-              Product Price <span className="text-gray-300 font-light normal-case tracking-normal">(optional)</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-light">Rs =</span>
-              <input type="number" min="0" step="0.01" value={productPrice} onChange={(e) => setProductPrice(e.target.value)}
-                placeholder="0"
-                className="w-full border border-gray-200 pl-14 pr-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light" />
+
+          <div className="divider-gold mx-6 mt-5" />
+
+          {/* Form — hidden while uploading */}
+          {!isActive && (
+            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 tracking-[0.15em] uppercase mb-2">
+                  Product Name <span className="text-gray-300 font-light normal-case tracking-normal">(optional)</span>
+                </label>
+                <input ref={nameRef} type="text" value={productName} onChange={(e) => setProductName(e.target.value)}
+                  placeholder="e.g. Silk Evening Gown"
+                  className="w-full border border-gray-200 px-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-medium text-gray-500 tracking-[0.15em] uppercase mb-2">
+                  Product Price <span className="text-gray-300 font-light normal-case tracking-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-light">Rs =</span>
+                  <input type="number" min="0" step="0.01" value={productPrice} onChange={(e) => setProductPrice(e.target.value)}
+                    placeholder="0"
+                    className="w-full border border-gray-200 pl-14 pr-4 py-2.5 text-sm text-black placeholder-gray-300 outline-none focus:border-[#D4AF37] transition-colors duration-200 font-light" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={onCancel}
+                  className="flex-1 py-2.5 border border-gray-200 text-xs font-medium tracking-[0.1em] uppercase text-gray-500 hover:border-gray-400 hover:text-black transition-all duration-200">
+                  Cancel
+                </button>
+                <button type="submit"
+                  className="flex-1 py-2.5 bg-black text-white text-xs font-medium tracking-[0.1em] uppercase hover:bg-[#D4AF37] hover:text-black transition-all duration-300">
+                  Upload {files.length > 1 ? `${files.length} Images` : "Image"}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Upload in-progress state */}
+          {isActive && (
+            <div className="px-6 py-6 flex flex-col items-center gap-3">
+              <svg className="w-6 h-6 animate-spin text-[#D4AF37]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              <p className="text-sm text-gray-600 font-light">
+                Uploading {doneCount + 1} of {files.length}…
+              </p>
+              {/* Progress bar */}
+              <div className="w-full h-1 bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full bg-[#D4AF37] transition-all duration-500"
+                  style={{ width: `${Math.round((doneCount / files.length) * 100)}%` }}
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onCancel}
-              className="flex-1 py-2.5 border border-gray-200 text-xs font-medium tracking-[0.1em] uppercase text-gray-500 hover:border-gray-400 hover:text-black transition-all duration-200">
-              Cancel
-            </button>
-            <button type="submit"
-              className="flex-1 py-2.5 bg-black text-white text-xs font-medium tracking-[0.1em] uppercase hover:bg-[#D4AF37] hover:text-black transition-all duration-300">
-              Upload
-            </button>
-          </div>
-        </form>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -481,7 +561,7 @@ function Lightbox({ images, initialIndex, onClose }: LightboxProps) {
 }
 
 // ─── Main ImageGrid ───────────────────────────────────────────────────────────
-export default function ImageGrid({ images, loading, uploading, onUpload, onDelete, onUpdate }: ImageGridProps) {
+export default function ImageGrid({ images, loading, uploading, uploadProgress, onUpload, onDelete, onUpdate }: ImageGridProps) {
   const [dragActive, setDragActive] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
@@ -531,8 +611,10 @@ export default function ImageGrid({ images, loading, uploading, onUpload, onDele
   const handleUploadConfirm = async (productName: string, productPrice: number | null) => {
     if (!pendingFiles) return;
     const files = pendingFiles;
-    setPendingFiles(null);
+    // Don't clear pendingFiles yet — keep modal open to show progress
     await onUpload(files, productName, productPrice);
+    // Close modal after upload finishes (success or partial failure)
+    setPendingFiles(null);
   };
 
   const handleEditConfirm = async (updates: { productName: string; productPrice: number | null; file?: File }) => {
@@ -553,18 +635,28 @@ export default function ImageGrid({ images, loading, uploading, onUpload, onDele
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#fafaf8]">
-      {/* Upload area */}
+      {/* Upload area — entire box is clickable, opens gallery immediately */}
       <div className="p-6 pb-4">
         <div
           onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
-          className={`relative border border-dashed p-10 text-center transition-all duration-300 cursor-pointer ${
+          className={`relative border border-dashed p-8 text-center transition-all duration-300 cursor-pointer ${
             dragActive ? "border-[#D4AF37] bg-[#D4AF37]/5" : "border-gray-300 hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/3 bg-white"
           }`}
           onClick={() => !uploading && fileInputRef.current?.click()}
         >
-          <input ref={fileInputRef} type="file" multiple accept="image/*" onChange={handleFileInput} className="hidden" />
-          <div className="flex flex-col items-center gap-4">
-            <div className={`w-12 h-12 border flex items-center justify-center transition-all duration-300 ${dragActive ? "border-[#D4AF37] text-[#D4AF37]" : "border-gray-300 text-gray-400"}`}>
+          {/* Hidden file input — multiple, all image types, opens immediately on click */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/avif,image/svg+xml,image/bmp,image/tiff,image/heic,image/heif"
+            onChange={handleFileInput}
+            className="hidden"
+          />
+          <div className="flex flex-col items-center gap-3 pointer-events-none">
+            <div className={`w-11 h-11 border flex items-center justify-center transition-all duration-300 ${
+              dragActive ? "border-[#D4AF37] text-[#D4AF37]" : "border-gray-300 text-gray-400"
+            }`}>
               {uploading ? (
                 <svg className="w-5 h-5 animate-spin text-[#D4AF37]" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"/>
@@ -578,18 +670,12 @@ export default function ImageGrid({ images, loading, uploading, onUpload, onDele
             </div>
             <div>
               <p className="text-sm font-medium text-gray-700 tracking-wide">
-                {uploading ? "Uploading your images..." : dragActive ? "Release to upload" : "Drop images here"}
+                {uploading ? "Uploading…" : dragActive ? "Release to upload" : "Tap to select images"}
               </p>
-              <p className="text-xs text-gray-400 mt-1 font-light">
-                {uploading ? "Please wait" : "or click to browse · PNG, JPG, WEBP up to 10MB"}
+              <p className="text-xs text-gray-400 mt-0.5 font-light">
+                {uploading ? "Please wait" : "JPG · PNG · WEBP · GIF · SVG · AVIF · up to 100 MB each"}
               </p>
             </div>
-            {!uploading && (
-              <button onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                className="px-6 py-2 bg-black text-white text-xs font-medium tracking-[0.12em] uppercase hover:bg-[#D4AF37] hover:text-black transition-all duration-300">
-                Select Images
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -712,7 +798,13 @@ export default function ImageGrid({ images, loading, uploading, onUpload, onDele
 
       {/* Upload modal */}
       {pendingFiles && (
-        <UploadModal files={pendingFiles} onConfirm={handleUploadConfirm} onCancel={() => setPendingFiles(null)} />
+        <UploadModal
+          files={pendingFiles}
+          uploading={uploading}
+          progress={uploadProgress}
+          onConfirm={handleUploadConfirm}
+          onCancel={() => { if (!uploading) setPendingFiles(null); }}
+        />
       )}
 
       {/* Edit modal */}

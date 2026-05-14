@@ -22,7 +22,7 @@ export default function DashboardPage() {
   }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
 
   const { folders, loading: foldersLoading, createFolder, renameFolder, deleteFolder } = useFolders();
-  const { images, loading: imagesLoading, uploading, uploadImages, deleteImage, updateImage } = useImages(selectedFolderId);
+  const { images, loading: imagesLoading, uploading, uploadProgress, uploadImages, deleteImage, updateImage } = useImages(selectedFolderId);
 
   const addToast = useCallback((type: ToastMessage["type"], message: string) => {
     const id = Math.random().toString(36).slice(2);
@@ -220,6 +220,7 @@ export default function DashboardPage() {
             images={images}
             loading={imagesLoading}
             uploading={uploading}
+            uploadProgress={uploadProgress}
             onUpload={handleUpload}
             onDelete={handleDeleteImage}
             onUpdate={handleUpdateImage}
