@@ -572,9 +572,33 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
   const [contextMenu, setContextMenu] = useState<{ image: CatalogImage; index: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
-  // Separate inputs: gallery (multiple) and camera (capture)
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // ── File picker helper ──
+  // Creates a temporary <input> each time so the browser always respects
+  // the `capture` attribute. Static hidden inputs are often ignored by
+  // mobile browsers when triggered programmatically.
+  const openFilePicker = (mode: "gallery" | "camera") => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0;";
+
+    if (mode === "gallery") {
+      input.multiple = true;
+    } else {
+      // capture="environment" → rear camera; "user" → front camera
+      input.capture = "environment";
+    }
+
+    input.onchange = () => {
+      const files = input.files ? Array.from(input.files) : [];
+      if (files.length > 0) setPendingFiles(files);
+      input.remove();
+    };
+
+    document.body.appendChild(input);
+    input.click();
+  };
 
   // Dismiss context menu on outside click
   useEffect(() => {
@@ -649,24 +673,6 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
           }`}
           onClick={() => { if (!uploading) setShowSourceModal(true); }}
         >
-          {/* Hidden gallery input — multiple files, no capture */}
-          <input
-            ref={galleryInputRef}
-            type="file"
-            multiple
-            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/avif,image/svg+xml,image/bmp,image/tiff,image/heic,image/heif"
-            onChange={handleFileInput}
-            className="hidden"
-          />
-          {/* Hidden camera input — single file, capture=environment */}
-          <input
-            ref={cameraInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleFileInput}
-            className="hidden"
-          />
           <div className="flex flex-col items-center gap-3 pointer-events-none">
             <div className={`w-11 h-11 border flex items-center justify-center transition-all duration-300 ${
               dragActive ? "border-[#D4AF37] text-[#D4AF37]" : "border-gray-300 text-gray-400"
@@ -836,12 +842,11 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
         <ImageSourceModal
           onGallery={() => {
             setShowSourceModal(false);
-            // Small timeout lets the modal animate out before the native picker opens
-            setTimeout(() => galleryInputRef.current?.click(), 50);
+            setTimeout(() => openFilePicker("gallery"), 50);
           }}
           onCamera={() => {
             setShowSourceModal(false);
-            setTimeout(() => cameraInputRef.current?.click(), 50);
+            setTimeout(() => openFilePicker("camera"), 50);
           }}
           onClose={() => setShowSourceModal(false)}
         />
