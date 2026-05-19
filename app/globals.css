@@ -107,6 +107,15 @@ body {
   animation: fade-in-scale 0.3s ease forwards;
 }
 
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 /* ─── Luxury Skeleton ────────────────────────────────────────── */
 .skeleton {
   background: linear-gradient(

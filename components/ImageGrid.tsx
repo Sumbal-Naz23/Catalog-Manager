@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { CatalogImage, UploadProgress } from "@/hooks/useImages";
+import ImageSourceModal from "@/components/ImageSourceModal";
 
 interface ImageGridProps {
   images: CatalogImage[];
@@ -566,11 +567,14 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
   const [editingImage, setEditingImage] = useState<CatalogImage | null>(null);
+  const [showSourceModal, setShowSourceModal] = useState(false);
   // Long-press context menu
   const [contextMenu, setContextMenu] = useState<{ image: CatalogImage; index: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Separate inputs: gallery (multiple) and camera (capture)
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // Dismiss context menu on outside click
   useEffect(() => {
@@ -608,6 +612,7 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (files.length > 0) { setPendingFiles(files); e.target.value = ""; }
   };
+
   const handleUploadConfirm = async (productName: string, productPrice: number | null) => {
     if (!pendingFiles) return;
     const files = pendingFiles;
@@ -635,21 +640,30 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#fafaf8]">
-      {/* Upload area — entire box is clickable, opens gallery immediately */}
+      {/* Upload area — click opens source picker modal */}
       <div className="p-6 pb-4">
         <div
           onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
           className={`relative border border-dashed p-8 text-center transition-all duration-300 cursor-pointer ${
             dragActive ? "border-[#D4AF37] bg-[#D4AF37]/5" : "border-gray-300 hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/3 bg-white"
           }`}
-          onClick={() => !uploading && fileInputRef.current?.click()}
+          onClick={() => { if (!uploading) setShowSourceModal(true); }}
         >
-          {/* Hidden file input — multiple, all image types, opens immediately on click */}
+          {/* Hidden gallery input — multiple files, no capture */}
           <input
-            ref={fileInputRef}
+            ref={galleryInputRef}
             type="file"
             multiple
             accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/avif,image/svg+xml,image/bmp,image/tiff,image/heic,image/heif"
+            onChange={handleFileInput}
+            className="hidden"
+          />
+          {/* Hidden camera input — single file, capture=environment */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
             onChange={handleFileInput}
             className="hidden"
           />
@@ -670,10 +684,10 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
             </div>
             <div>
               <p className="text-sm font-medium text-gray-700 tracking-wide">
-                {uploading ? "Uploading…" : dragActive ? "Release to upload" : "Tap to select images"}
+                {uploading ? "Uploading…" : dragActive ? "Release to upload" : "Select Image"}
               </p>
               <p className="text-xs text-gray-400 mt-0.5 font-light">
-                {uploading ? "Please wait" : "JPG · PNG · WEBP · GIF · SVG · AVIF · up to 100 MB each"}
+                {uploading ? "Please wait" : "Camera · Gallery · or drag & drop"}
               </p>
             </div>
           </div>
@@ -815,6 +829,22 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
       {/* Carousel lightbox */}
       {lightboxIndex !== null && (
         <Lightbox images={images} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+      )}
+
+      {/* Image source picker modal */}
+      {showSourceModal && (
+        <ImageSourceModal
+          onGallery={() => {
+            setShowSourceModal(false);
+            // Small timeout lets the modal animate out before the native picker opens
+            setTimeout(() => galleryInputRef.current?.click(), 50);
+          }}
+          onCamera={() => {
+            setShowSourceModal(false);
+            setTimeout(() => cameraInputRef.current?.click(), 50);
+          }}
+          onClose={() => setShowSourceModal(false)}
+        />
       )}
     </div>
   );

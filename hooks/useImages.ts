@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export interface CatalogImage {
   _id: string;
@@ -20,8 +20,35 @@ export interface UploadProgress {
   error?: string;
 }
 
+// ─── Module-level per-folder cache ───────────────────────────────────────────
+const _imagesCache = new Map<string, CatalogImage[]>();
+const _fetchPromises = new Map<string, Promise<CatalogImage[]>>();
+
+function invalidateImagesCache(folderId: string) {
+  _imagesCache.delete(folderId);
+  _fetchPromises.delete(folderId);
+}
+
+async function fetchImagesOnce(folderId: string): Promise<CatalogImage[]> {
+  if (_imagesCache.has(folderId)) return _imagesCache.get(folderId)!;
+
+  if (_fetchPromises.has(folderId)) return _fetchPromises.get(folderId)!;
+
+  const promise = (async () => {
+    const res = await fetch(`/api/images?folderId=${folderId}`);
+    if (!res.ok) throw new Error("Failed to fetch images");
+    const data = await res.json();
+    const images = (data.images ?? []) as CatalogImage[];
+    _imagesCache.set(folderId, images);
+    _fetchPromises.delete(folderId);
+    return images;
+  })();
+
+  _fetchPromises.set(folderId, promise);
+  return promise;
+}
+
 // ─── Safe JSON parser ─────────────────────────────────────────────────────────
-// Never throws — always returns { data, error } where error is a clean string.
 async function safeJson<T>(res: Response): Promise<{ data: T | null; error: string | null }> {
   const contentType = res.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
@@ -32,7 +59,6 @@ async function safeJson<T>(res: Response): Promise<{ data: T | null; error: stri
       return { data: null, error: "Unexpected server response. Please try again." };
     }
   }
-  // Non-JSON (plain text, HTML error page, etc.)
   const text = await res.text().catch(() => "");
   console.error("[safeJson] Non-JSON response", res.status, text.slice(0, 400));
   if (res.status === 413) return { data: null, error: "File too large. Please upload images under 100 MB each." };
@@ -42,31 +68,54 @@ async function safeJson<T>(res: Response): Promise<{ data: T | null; error: stri
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useImages(folderId: string | null) {
-  const [images, setImages] = useState<CatalogImage[]>([]);
-  const [loading, setLoading] = useState(false);
+  const cached = folderId ? (_imagesCache.get(folderId) ?? null) : null;
+  const [images, setImages] = useState<CatalogImage[]>(cached ?? []);
+  const [loading, setLoading] = useState(folderId !== null && cached === null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const fetchImages = useCallback(async () => {
-    if (!folderId) { setImages([]); return; }
+    if (!folderId) {
+      setImages([]);
+      setLoading(false);
+      return;
+    }
+
+    // Serve from cache instantly — no loading flash
+    if (_imagesCache.has(folderId)) {
+      setImages(_imagesCache.get(folderId)!);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/images?folderId=${folderId}`);
-      if (!res.ok) throw new Error("Failed to fetch images");
-      const data = await res.json();
-      setImages(data.images ?? []);
+      const data = await fetchImagesOnce(folderId);
+      if (mountedRef.current) {
+        setImages(data);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      if (mountedRef.current) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, [folderId]);
 
-  useEffect(() => { fetchImages(); }, [fetchImages]);
+  useEffect(() => {
+    fetchImages();
+  }, [fetchImages]);
 
-  // ── Upload: one file per request to bypass body-size limits ────────────────
+  // ── Upload: one file per request ────────────────────────────────────────────
   const uploadImages = async (
     files: File[],
     productName?: string,
@@ -83,7 +132,6 @@ export function useImages(folderId: string | null) {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
-      // Mark as uploading
       setUploadProgress((prev) =>
         prev.map((p, idx) => (idx === i ? { ...p, status: "uploading" } : p))
       );
@@ -126,18 +174,20 @@ export function useImages(folderId: string | null) {
       }
     }
 
-    // Add all successfully uploaded images to state
     if (newImages.length > 0) {
-      setImages((prev) => [...newImages, ...prev]);
+      setImages((prev) => {
+        const updated = [...newImages, ...prev];
+        // Keep cache in sync
+        _imagesCache.set(folderId, updated);
+        return updated;
+      });
     }
 
     setUploading(false);
 
-    // If every file failed, throw so the caller can show a toast
     if (errors.length === files.length) {
-      throw new Error(errors[0]); // surface the first error
+      throw new Error(errors[0]);
     }
-    // Partial failure — caller can inspect uploadProgress
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────────
@@ -145,7 +195,11 @@ export function useImages(folderId: string | null) {
     const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
     const { data, error } = await safeJson<{ error?: string }>(res);
     if (!res.ok) throw new Error(error ?? data?.error ?? "Failed to delete image");
-    setImages((prev) => prev.filter((img) => img._id !== id));
+    setImages((prev) => {
+      const updated = prev.filter((img) => img._id !== id);
+      if (folderId) _imagesCache.set(folderId, updated);
+      return updated;
+    });
   };
 
   // ── Update ─────────────────────────────────────────────────────────────────
@@ -176,7 +230,11 @@ export function useImages(folderId: string | null) {
     const { data, error } = await safeJson<{ image?: CatalogImage; error?: string }>(res);
     if (!res.ok) throw new Error(error ?? data?.error ?? `Update failed (${res.status})`);
     if (data?.image) {
-      setImages((prev) => prev.map((img) => (img._id === id ? { ...img, ...data.image } : img)));
+      setImages((prev) => {
+        const updated = prev.map((img) => (img._id === id ? { ...img, ...data.image } : img));
+        if (folderId) _imagesCache.set(folderId, updated);
+        return updated;
+      });
     }
   };
 
