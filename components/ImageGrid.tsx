@@ -573,22 +573,14 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
 
-  // ── File picker helper ──
-  // Creates a temporary <input> each time so the browser always respects
-  // the `capture` attribute. Static hidden inputs are often ignored by
-  // mobile browsers when triggered programmatically.
-  const openFilePicker = (mode: "gallery" | "camera") => {
+  // ── File picker helper (gallery only — camera is handled by the modal's own input) ──
+  const openFilePicker = () => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
+    input.multiple = true;
     input.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0;";
-
-    if (mode === "gallery") {
-      input.multiple = true;
-    } else {
-      // capture="environment" → rear camera; "user" → front camera
-      input.capture = "environment";
-    }
+    input.removeAttribute("capture");
 
     input.onchange = () => {
       const files = input.files ? Array.from(input.files) : [];
@@ -842,11 +834,10 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
         <ImageSourceModal
           onGallery={() => {
             setShowSourceModal(false);
-            setTimeout(() => openFilePicker("gallery"), 50);
+            setTimeout(() => openFilePicker(), 50);
           }}
-          onCamera={() => {
-            setShowSourceModal(false);
-            setTimeout(() => openFilePicker("camera"), 50);
+          onFileSelected={(files) => {
+            setPendingFiles(files);
           }}
           onClose={() => setShowSourceModal(false)}
         />
