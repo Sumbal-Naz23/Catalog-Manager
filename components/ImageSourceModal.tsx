@@ -9,56 +9,8 @@ interface ImageSourceModalProps {
 
 export default function ImageSourceModal({ onFilesSelected, onClose }: ImageSourceModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
-
-  // ── Inject two real <input> elements directly into document.body.
-  //    This is the only approach that reliably triggers `capture="environment"`
-  //    on Android Chrome and iOS Safari — React-rendered inputs inside a modal
-  //    tree can have the attribute stripped or ignored during reconciliation.
-  useEffect(() => {
-    // Gallery input — multiple files, no capture
-    const gallery = document.createElement("input");
-    gallery.type = "file";
-    gallery.accept = "image/*";
-    gallery.multiple = true;
-    gallery.id = "__gallery_input__";
-    gallery.style.cssText =
-      "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;";
-
-    // Camera input — single file, capture rear camera
-    const camera = document.createElement("input");
-    camera.type = "file";
-    camera.accept = "image/*";
-    camera.id = "__camera_input__";
-    camera.style.cssText =
-      "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;";
-    // setAttribute is required — assigning .capture as a JS property is ignored
-    camera.setAttribute("capture", "environment");
-
-    const handleGallery = () => {
-      const files = gallery.files ? Array.from(gallery.files) : [];
-      if (files.length > 0) onFilesSelected(files);
-      gallery.value = "";
-    };
-    const handleCamera = () => {
-      const files = camera.files ? Array.from(camera.files) : [];
-      if (files.length > 0) onFilesSelected(files);
-      camera.value = "";
-    };
-
-    gallery.addEventListener("change", handleGallery);
-    camera.addEventListener("change", handleCamera);
-
-    document.body.appendChild(gallery);
-    document.body.appendChild(camera);
-
-    return () => {
-      gallery.removeEventListener("change", handleGallery);
-      camera.removeEventListener("change", handleCamera);
-      gallery.remove();
-      camera.remove();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // mount/unmount only — onFilesSelected is stable (useCallback in parent)
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   // Close on Escape
   useEffect(() => {
@@ -69,29 +21,57 @@ export default function ImageSourceModal({ onFilesSelected, onClose }: ImageSour
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  const triggerGallery = () => {
-    const el = document.getElementById("__gallery_input__") as HTMLInputElement | null;
-    if (el) el.click();
-    onClose();
+  const handleGalleryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (files.length > 0) {
+      onFilesSelected(files);
+      onClose();
+    }
   };
 
-  const triggerCamera = () => {
-    const el = document.getElementById("__camera_input__") as HTMLInputElement | null;
-    if (el) el.click();
-    onClose();
+  const handleCameraChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = "";
+    if (files.length > 0) {
+      onFilesSelected(files);
+      onClose();
+    }
   };
 
   return (
     <div
       ref={backdropRef}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      onClick={(e) => {
-        if (e.target === backdropRef.current) onClose();
-      }}
+      onClick={(e) => { if (e.target === backdropRef.current) onClose(); }}
       role="dialog"
       aria-modal="true"
       aria-label="Select image source"
     >
+      {/* These inputs stay mounted the entire time the modal is open.
+          They are only clicked synchronously from the button handlers below —
+          no setTimeout, no state update, no unmount in between.
+          This is the only reliable way to get capture="environment" respected
+          on Android Chrome and iOS Safari. */}
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleGalleryChange}
+        style={{ position: "fixed", top: -9999, left: -9999, opacity: 0, pointerEvents: "none" }}
+        aria-hidden="true"
+      />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleCameraChange}
+        style={{ position: "fixed", top: -9999, left: -9999, opacity: 0, pointerEvents: "none" }}
+        aria-hidden="true"
+      />
+
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in" />
 
@@ -129,9 +109,9 @@ export default function ImageSourceModal({ onFilesSelected, onClose }: ImageSour
           {/* Options */}
           <div className="grid grid-cols-2 gap-3">
 
-            {/* Gallery */}
+            {/* Gallery — click triggers the gallery input synchronously */}
             <button
-              onClick={triggerGallery}
+              onClick={() => galleryRef.current?.click()}
               className="group relative flex flex-col items-center gap-3 p-5 border border-white/10 hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/5 transition-all duration-200 active:scale-[0.97]"
             >
               <div className="w-12 h-12 border border-white/15 group-hover:border-[#D4AF37]/50 flex items-center justify-center transition-all duration-200 group-hover:bg-[#D4AF37]/10">
@@ -146,9 +126,11 @@ export default function ImageSourceModal({ onFilesSelected, onClose }: ImageSour
               <div className="absolute top-0 left-0 w-0 h-0 border-t-[14px] border-l-[14px] border-t-[#D4AF37] border-l-[#D4AF37] opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
             </button>
 
-            {/* Camera */}
+            {/* Camera — click triggers the camera input synchronously.
+                The input stays mounted (modal stays open) until a photo is
+                taken, so the browser never loses the gesture context. */}
             <button
-              onClick={triggerCamera}
+              onClick={() => cameraRef.current?.click()}
               className="group relative flex flex-col items-center gap-3 p-5 border border-white/10 hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/5 transition-all duration-200 active:scale-[0.97]"
             >
               <div className="w-12 h-12 border border-white/15 group-hover:border-[#D4AF37]/50 flex items-center justify-center transition-all duration-200 group-hover:bg-[#D4AF37]/10">

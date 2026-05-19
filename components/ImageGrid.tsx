@@ -573,9 +573,9 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
 
-  // Files come back from ImageSourceModal via onFilesSelected
+  // Files come back from ImageSourceModal
   const handleFilesSelected = useCallback((files: File[]) => {
-    if (files.length > 0) setPendingFiles(files);
+    setPendingFiles(files);
   }, []);
 
   // Dismiss context menu on outside click
