@@ -62,7 +62,7 @@ export default function ImageSourceModal({ onFilesSelected, onClose }: ImageSour
         style={{ position: "fixed", top: -9999, left: -9999, opacity: 0, pointerEvents: "none" }}
         aria-hidden="true"
       />
-      <input
+      {/* <input
         ref={cameraRef}
         type="file"
         accept="image/*"
@@ -70,6 +70,14 @@ export default function ImageSourceModal({ onFilesSelected, onClose }: ImageSour
         onChange={handleCameraChange}
         style={{ position: "fixed", top: -9999, left: -9999, opacity: 0, pointerEvents: "none" }}
         aria-hidden="true"
+      /> */}
+            <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleCameraChange}
+        style={{ display: "none" }}
       />
 
       {/* Backdrop */}
