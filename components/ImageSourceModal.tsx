@@ -3,17 +3,62 @@
 import { useEffect, useRef } from "react";
 
 interface ImageSourceModalProps {
-  onGallery: () => void;
-  onFileSelected: (files: File[]) => void;
+  onFilesSelected: (files: File[]) => void;
   onClose: () => void;
 }
 
-export default function ImageSourceModal({
-  onGallery,
-  onFileSelected,
-  onClose,
-}: ImageSourceModalProps) {
+export default function ImageSourceModal({ onFilesSelected, onClose }: ImageSourceModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
+
+  // ── Inject two real <input> elements directly into document.body.
+  //    This is the only approach that reliably triggers `capture="environment"`
+  //    on Android Chrome and iOS Safari — React-rendered inputs inside a modal
+  //    tree can have the attribute stripped or ignored during reconciliation.
+  useEffect(() => {
+    // Gallery input — multiple files, no capture
+    const gallery = document.createElement("input");
+    gallery.type = "file";
+    gallery.accept = "image/*";
+    gallery.multiple = true;
+    gallery.id = "__gallery_input__";
+    gallery.style.cssText =
+      "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;";
+
+    // Camera input — single file, capture rear camera
+    const camera = document.createElement("input");
+    camera.type = "file";
+    camera.accept = "image/*";
+    camera.id = "__camera_input__";
+    camera.style.cssText =
+      "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;";
+    // setAttribute is required — assigning .capture as a JS property is ignored
+    camera.setAttribute("capture", "environment");
+
+    const handleGallery = () => {
+      const files = gallery.files ? Array.from(gallery.files) : [];
+      if (files.length > 0) onFilesSelected(files);
+      gallery.value = "";
+    };
+    const handleCamera = () => {
+      const files = camera.files ? Array.from(camera.files) : [];
+      if (files.length > 0) onFilesSelected(files);
+      camera.value = "";
+    };
+
+    gallery.addEventListener("change", handleGallery);
+    camera.addEventListener("change", handleCamera);
+
+    document.body.appendChild(gallery);
+    document.body.appendChild(camera);
+
+    return () => {
+      gallery.removeEventListener("change", handleGallery);
+      camera.removeEventListener("change", handleCamera);
+      gallery.remove();
+      camera.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount/unmount only — onFilesSelected is stable (useCallback in parent)
 
   // Close on Escape
   useEffect(() => {
@@ -23,6 +68,18 @@ export default function ImageSourceModal({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  const triggerGallery = () => {
+    const el = document.getElementById("__gallery_input__") as HTMLInputElement | null;
+    if (el) el.click();
+    onClose();
+  };
+
+  const triggerCamera = () => {
+    const el = document.getElementById("__camera_input__") as HTMLInputElement | null;
+    if (el) el.click();
+    onClose();
+  };
 
   return (
     <div
@@ -50,9 +107,7 @@ export default function ImageSourceModal({
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-sm font-semibold text-white tracking-wide">
-                Select Image
-              </h2>
+              <h2 className="text-sm font-semibold text-white tracking-wide">Select Image</h2>
               <p className="text-[11px] text-white/40 font-light mt-0.5 tracking-wide">
                 Choose how to add your image
               </p>
@@ -74,9 +129,9 @@ export default function ImageSourceModal({
           {/* Options */}
           <div className="grid grid-cols-2 gap-3">
 
-            {/* ── Gallery ── plain button, JS handles the picker */}
+            {/* Gallery */}
             <button
-              onClick={onGallery}
+              onClick={triggerGallery}
               className="group relative flex flex-col items-center gap-3 p-5 border border-white/10 hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/5 transition-all duration-200 active:scale-[0.97]"
             >
               <div className="w-12 h-12 border border-white/15 group-hover:border-[#D4AF37]/50 flex items-center justify-center transition-all duration-200 group-hover:bg-[#D4AF37]/10">
@@ -91,29 +146,11 @@ export default function ImageSourceModal({
               <div className="absolute top-0 left-0 w-0 h-0 border-t-[14px] border-l-[14px] border-t-[#D4AF37] border-l-[#D4AF37] opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
             </button>
 
-            {/* ── Camera ── label wraps a real <input capture> so the tap
-                 IS the gesture — no JS .click() needed, browser always
-                 opens the camera directly */}
-            <label
-              className="group relative flex flex-col items-center gap-3 p-5 border border-white/10 hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/5 transition-all duration-200 active:scale-[0.97] cursor-pointer"
+            {/* Camera */}
+            <button
+              onClick={triggerCamera}
+              className="group relative flex flex-col items-center gap-3 p-5 border border-white/10 hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/5 transition-all duration-200 active:scale-[0.97]"
             >
-              {/* The input lives inside the label — tapping the label
-                  activates this input directly within the same user gesture */}
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="sr-only"
-                onChange={(e) => {
-                  const files = e.target.files ? Array.from(e.target.files) : [];
-                  if (files.length > 0) {
-                    onFileSelected(files);
-                    onClose();
-                  }
-                  // Reset so the same file can be re-selected
-                  e.target.value = "";
-                }}
-              />
               <div className="w-12 h-12 border border-white/15 group-hover:border-[#D4AF37]/50 flex items-center justify-center transition-all duration-200 group-hover:bg-[#D4AF37]/10">
                 <svg className="w-6 h-6 text-white/50 group-hover:text-[#D4AF37] transition-colors duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
@@ -125,7 +162,7 @@ export default function ImageSourceModal({
                 <p className="text-[10px] text-white/30 group-hover:text-white/50 font-light mt-0.5 tracking-wide transition-colors duration-200">Capture now</p>
               </div>
               <div className="absolute top-0 left-0 w-0 h-0 border-t-[14px] border-l-[14px] border-t-[#D4AF37] border-l-[#D4AF37] opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-            </label>
+            </button>
 
           </div>
 

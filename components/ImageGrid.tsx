@@ -573,24 +573,10 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
 
-  // ── File picker helper (gallery only — camera is handled by the modal's own input) ──
-  const openFilePicker = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.multiple = true;
-    input.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0;";
-    input.removeAttribute("capture");
-
-    input.onchange = () => {
-      const files = input.files ? Array.from(input.files) : [];
-      if (files.length > 0) setPendingFiles(files);
-      input.remove();
-    };
-
-    document.body.appendChild(input);
-    input.click();
-  };
+  // Files come back from ImageSourceModal via onFilesSelected
+  const handleFilesSelected = useCallback((files: File[]) => {
+    if (files.length > 0) setPendingFiles(files);
+  }, []);
 
   // Dismiss context menu on outside click
   useEffect(() => {
@@ -832,13 +818,7 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
       {/* Image source picker modal */}
       {showSourceModal && (
         <ImageSourceModal
-          onGallery={() => {
-            setShowSourceModal(false);
-            setTimeout(() => openFilePicker(), 50);
-          }}
-          onFileSelected={(files) => {
-            setPendingFiles(files);
-          }}
+          onFilesSelected={handleFilesSelected}
           onClose={() => setShowSourceModal(false)}
         />
       )}
