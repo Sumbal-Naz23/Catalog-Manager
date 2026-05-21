@@ -15,9 +15,12 @@ const nextConfig: NextConfig = {
         hostname: "res.cloudinary.com",
       },
     ],
+    // Serve modern formats (WebP/AVIF) automatically — smaller files = faster load
+    formats: ["image/avif", "image/webp"],
+    // Aggressive browser caching for Cloudinary images
+    minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days
   },
   serverExternalPackages: ["mongoose"],
-
   turbopack: {},
 };
 

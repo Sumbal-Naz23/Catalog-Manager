@@ -24,14 +24,8 @@ export interface UploadProgress {
 const _imagesCache = new Map<string, CatalogImage[]>();
 const _fetchPromises = new Map<string, Promise<CatalogImage[]>>();
 
-function invalidateImagesCache(folderId: string) {
-  _imagesCache.delete(folderId);
-  _fetchPromises.delete(folderId);
-}
-
 async function fetchImagesOnce(folderId: string): Promise<CatalogImage[]> {
   if (_imagesCache.has(folderId)) return _imagesCache.get(folderId)!;
-
   if (_fetchPromises.has(folderId)) return _fetchPromises.get(folderId)!;
 
   const promise = (async () => {
@@ -68,13 +62,18 @@ async function safeJson<T>(res: Response): Promise<{ data: T | null; error: stri
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useImages(folderId: string | null) {
-  const cached = folderId ? (_imagesCache.get(folderId) ?? null) : null;
-  const [images, setImages] = useState<CatalogImage[]>(cached ?? []);
-  const [loading, setLoading] = useState(folderId !== null && cached === null);
+  // Initialise directly from cache — switching folders is instant if cached
+  const [images, setImages] = useState<CatalogImage[]>(
+    () => (folderId ? (_imagesCache.get(folderId) ?? []) : [])
+  );
+  const [loading, setLoading] = useState<boolean>(
+    () => folderId !== null && !_imagesCache.has(folderId)
+  );
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
+  const prevFolderRef = useRef<string | null>(folderId);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -88,7 +87,7 @@ export function useImages(folderId: string | null) {
       return;
     }
 
-    // Serve from cache instantly — no loading flash
+    // Serve from cache instantly — no spinner, no flash
     if (_imagesCache.has(folderId)) {
       setImages(_imagesCache.get(folderId)!);
       setLoading(false);
@@ -99,15 +98,33 @@ export function useImages(folderId: string | null) {
       setLoading(true);
       setError(null);
       const data = await fetchImagesOnce(folderId);
-      if (mountedRef.current) {
-        setImages(data);
-      }
+      if (mountedRef.current) setImages(data);
     } catch (err) {
-      if (mountedRef.current) {
+      if (mountedRef.current)
         setError(err instanceof Error ? err.message : "Unknown error");
-      }
     } finally {
       if (mountedRef.current) setLoading(false);
+    }
+  }, [folderId]);
+
+  // When folderId changes, immediately show cached data (or clear) before fetch
+  useEffect(() => {
+    if (folderId !== prevFolderRef.current) {
+      prevFolderRef.current = folderId;
+      if (!folderId) {
+        setImages([]);
+        setLoading(false);
+        return;
+      }
+      if (_imagesCache.has(folderId)) {
+        // Instant — no loading state at all
+        setImages(_imagesCache.get(folderId)!);
+        setLoading(false);
+      } else {
+        // New folder not yet cached — show empty + spinner while fetching
+        setImages([]);
+        setLoading(true);
+      }
     }
   }, [folderId]);
 
@@ -115,7 +132,7 @@ export function useImages(folderId: string | null) {
     fetchImages();
   }, [fetchImages]);
 
-  // ── Upload: one file per request ────────────────────────────────────────────
+  // ── Upload ──────────────────────────────────────────────────────────────────
   const uploadImages = async (
     files: File[],
     productName?: string,
@@ -157,9 +174,7 @@ export function useImages(folderId: string | null) {
           throw new Error(msg);
         }
 
-        if (data?.images?.length) {
-          newImages.push(...data.images);
-        }
+        if (data?.images?.length) newImages.push(...data.images);
 
         setUploadProgress((prev) =>
           prev.map((p, idx) => (idx === i ? { ...p, status: "done" } : p))
@@ -177,7 +192,6 @@ export function useImages(folderId: string | null) {
     if (newImages.length > 0) {
       setImages((prev) => {
         const updated = [...newImages, ...prev];
-        // Keep cache in sync
         _imagesCache.set(folderId, updated);
         return updated;
       });
@@ -185,12 +199,10 @@ export function useImages(folderId: string | null) {
 
     setUploading(false);
 
-    if (errors.length === files.length) {
-      throw new Error(errors[0]);
-    }
+    if (errors.length === files.length) throw new Error(errors[0]);
   };
 
-  // ── Delete ─────────────────────────────────────────────────────────────────
+  // ── Delete ──────────────────────────────────────────────────────────────────
   const deleteImage = async (id: string): Promise<void> => {
     const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
     const { data, error } = await safeJson<{ error?: string }>(res);
@@ -202,7 +214,7 @@ export function useImages(folderId: string | null) {
     });
   };
 
-  // ── Update ─────────────────────────────────────────────────────────────────
+  // ── Update ──────────────────────────────────────────────────────────────────
   const updateImage = async (
     id: string,
     updates: { productName?: string; productPrice?: number | null; file?: File }

@@ -727,6 +727,8 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
                   sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
                   className="object-cover img-zoom"
                   draggable={false}
+                  // Eagerly load the first 6 images — they're above the fold
+                  priority={index < 6}
                 />
 
                 {/* Hover overlay */}

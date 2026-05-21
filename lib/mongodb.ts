@@ -23,7 +23,17 @@ export async function connectDB(): Promise<typeof mongoose> {
   if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI, { bufferCommands: false });
+    cached.promise = mongoose.connect(MONGODB_URI, {
+      bufferCommands: false,
+      // Keep a small pool — serverless functions don't need many connections
+      maxPoolSize: 5,
+      minPoolSize: 1,
+      // Fail fast if MongoDB is unreachable rather than hanging
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 10000,
+      // Reuse connections aggressively
+      maxIdleTimeMS: 60000,
+    });
   }
 
   cached.conn = await cached.promise;

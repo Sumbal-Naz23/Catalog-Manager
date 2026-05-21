@@ -33,13 +33,25 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* Google Fonts — Poppins + Playfair Display */}
+        {/* Preconnect to font origins so the connection is ready instantly */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* font-display=swap — text renders immediately in fallback font,
+            swaps to Poppins/Playfair once loaded. No render blocking. */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&display=swap&display=swap"
           rel="stylesheet"
+          media="print"
+          // @ts-expect-error onload trick: load async, then switch media to all
+          onLoad="this.media='all'"
         />
+        {/* Noscript fallback */}
+        <noscript>
+          <link
+            href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&display=swap"
+            rel="stylesheet"
+          />
+        </noscript>
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
