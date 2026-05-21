@@ -20,120 +20,103 @@ export interface UploadProgress {
   error?: string;
 }
 
-// ─── Module-level per-folder cache ───────────────────────────────────────────
-const _imagesCache = new Map<string, CatalogImage[]>();
-const _fetchPromises = new Map<string, Promise<CatalogImage[]>>();
+// ─── Module-level cache (persists across re-renders and route changes) ────────
+const _cache = new Map<string, CatalogImage[]>();
+const _inflight = new Map<string, Promise<CatalogImage[]>>();
 
-async function fetchImagesOnce(folderId: string): Promise<CatalogImage[]> {
-  if (_imagesCache.has(folderId)) return _imagesCache.get(folderId)!;
-  if (_fetchPromises.has(folderId)) return _fetchPromises.get(folderId)!;
+async function fetchFolder(folderId: string): Promise<CatalogImage[]> {
+  if (_cache.has(folderId)) return _cache.get(folderId)!;
+  if (_inflight.has(folderId)) return _inflight.get(folderId)!;
 
-  const promise = (async () => {
-    const res = await fetch(`/api/images?folderId=${folderId}`);
-    if (!res.ok) throw new Error("Failed to fetch images");
-    const data = await res.json();
-    const images = (data.images ?? []) as CatalogImage[];
-    _imagesCache.set(folderId, images);
-    _fetchPromises.delete(folderId);
-    return images;
-  })();
+  const p = fetch(`/api/images?folderId=${folderId}`)
+    .then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
+    .then((d) => {
+      const imgs = (d.images ?? []) as CatalogImage[];
+      _cache.set(folderId, imgs);
+      _inflight.delete(folderId);
+      return imgs;
+    })
+    .catch((e) => {
+      _inflight.delete(folderId);
+      throw e;
+    });
 
-  _fetchPromises.set(folderId, promise);
-  return promise;
+  _inflight.set(folderId, p);
+  return p;
 }
 
 // ─── Safe JSON parser ─────────────────────────────────────────────────────────
 async function safeJson<T>(res: Response): Promise<{ data: T | null; error: string | null }> {
-  const contentType = res.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    try {
-      const data = (await res.json()) as T;
-      return { data, error: null };
-    } catch {
-      return { data: null, error: "Unexpected server response. Please try again." };
-    }
+  const ct = res.headers.get("content-type") ?? "";
+  if (ct.includes("application/json")) {
+    try { return { data: await res.json() as T, error: null }; }
+    catch { return { data: null, error: "Unexpected server response." }; }
   }
   const text = await res.text().catch(() => "");
-  console.error("[safeJson] Non-JSON response", res.status, text.slice(0, 400));
-  if (res.status === 413) return { data: null, error: "File too large. Please upload images under 100 MB each." };
-  if (res.status === 503) return { data: null, error: "Server unavailable. Please try again shortly." };
-  return { data: null, error: `Request failed (${res.status}). Please try again.` };
+  if (res.status === 413) return { data: null, error: "File too large (max 100 MB)." };
+  if (res.status === 503) return { data: null, error: "Server unavailable. Try again." };
+  return { data: null, error: `Request failed (${res.status}).` };
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useImages(folderId: string | null) {
-  // Initialise directly from cache — switching folders is instant if cached
-  const [images, setImages] = useState<CatalogImage[]>(
-    () => (folderId ? (_imagesCache.get(folderId) ?? []) : [])
-  );
-  const [loading, setLoading] = useState<boolean>(
-    () => folderId !== null && !_imagesCache.has(folderId)
-  );
+  // Seed state directly from cache — zero loading flash on cached folders
+  const [images,   setImages]   = useState<CatalogImage[]>(() => folderId ? (_cache.get(folderId) ?? []) : []);
+  const [loading,  setLoading]  = useState<boolean>(() => !!folderId && !_cache.has(folderId));
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
-  const prevFolderRef = useRef<string | null>(folderId);
 
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+
+  // ── Single effect handles both initial load and folder switches ────────────
+  // Merged into one effect to eliminate the race condition between the
+  // "folder changed" effect and the "fetchImages" effect that caused
+  // double renders and a brief loading flash on every folder switch.
   useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
-
-  const fetchImages = useCallback(async () => {
     if (!folderId) {
       setImages([]);
       setLoading(false);
+      setError(null);
       return;
     }
 
-    // Serve from cache instantly — no spinner, no flash
-    if (_imagesCache.has(folderId)) {
-      setImages(_imagesCache.get(folderId)!);
+    // Cache hit — instant, no network, no loading state
+    if (_cache.has(folderId)) {
+      setImages(_cache.get(folderId)!);
       setLoading(false);
       return;
     }
 
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchImagesOnce(folderId);
-      if (mountedRef.current) setImages(data);
-    } catch (err) {
-      if (mountedRef.current)
-        setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
+    // Cache miss — show spinner, fetch
+    setImages([]);
+    setLoading(true);
+    setError(null);
+
+    let cancelled = false;
+    fetchFolder(folderId)
+      .then((imgs) => {
+        if (!cancelled && mounted.current) {
+          setImages(imgs);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled && mounted.current) {
+          setError(err instanceof Error ? err.message : "Failed to load images");
+          setLoading(false);
+        }
+      });
+
+    return () => { cancelled = true; };
   }, [folderId]);
 
-  // When folderId changes, immediately show cached data (or clear) before fetch
-  useEffect(() => {
-    if (folderId !== prevFolderRef.current) {
-      prevFolderRef.current = folderId;
-      if (!folderId) {
-        setImages([]);
-        setLoading(false);
-        return;
-      }
-      if (_imagesCache.has(folderId)) {
-        // Instant — no loading state at all
-        setImages(_imagesCache.get(folderId)!);
-        setLoading(false);
-      } else {
-        // New folder not yet cached — show empty + spinner while fetching
-        setImages([]);
-        setLoading(true);
-      }
-    }
-  }, [folderId]);
-
-  useEffect(() => {
-    fetchImages();
-  }, [fetchImages]);
-
-  // ── Upload ──────────────────────────────────────────────────────────────────
-  const uploadImages = async (
+  // ── Upload ─────────────────────────────────────────────────────────────────
+  const uploadImages = useCallback(async (
     files: File[],
     productName?: string,
     productPrice?: number | null
@@ -148,86 +131,69 @@ export function useImages(folderId: string | null) {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      setUploadProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: "uploading" } : x));
 
-      setUploadProgress((prev) =>
-        prev.map((p, idx) => (idx === i ? { ...p, status: "uploading" } : p))
-      );
-
-      const formData = new FormData();
-      formData.append("folderId", folderId);
-      formData.append("images", file);
-      if (productName) formData.append("productName", productName);
-      if (productPrice != null) formData.append("productPrice", String(productPrice));
+      const fd = new FormData();
+      fd.append("folderId", folderId);
+      fd.append("images", file);
+      if (productName)       fd.append("productName", productName);
+      if (productPrice != null) fd.append("productPrice", String(productPrice));
 
       try {
         let res: Response;
-        try {
-          res = await fetch("/api/images/upload", { method: "POST", body: formData });
-        } catch {
-          throw new Error("Network error — check your connection and try again.");
-        }
+        try { res = await fetch("/api/images/upload", { method: "POST", body: fd }); }
+        catch { throw new Error("Network error — check your connection."); }
 
-        const { data, error: parseError } = await safeJson<{ images: CatalogImage[]; error?: string }>(res);
-
-        if (parseError || !res.ok) {
-          const msg = parseError ?? data?.error ?? `Upload failed (${res.status})`;
-          throw new Error(msg);
-        }
-
+        const { data, error: pe } = await safeJson<{ images: CatalogImage[]; error?: string }>(res);
+        if (pe || !res.ok) throw new Error(pe ?? data?.error ?? `Upload failed (${res.status})`);
         if (data?.images?.length) newImages.push(...data.images);
 
-        setUploadProgress((prev) =>
-          prev.map((p, idx) => (idx === i ? { ...p, status: "done" } : p))
-        );
+        setUploadProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: "done" } : x));
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Upload failed";
-        console.error(`[uploadImages] Failed for "${file.name}":`, msg);
         errors.push(`"${file.name}": ${msg}`);
-        setUploadProgress((prev) =>
-          prev.map((p, idx) => (idx === i ? { ...p, status: "error", error: msg } : p))
-        );
+        setUploadProgress((p) => p.map((x, idx) => idx === i ? { ...x, status: "error", error: msg } : x));
       }
     }
 
     if (newImages.length > 0) {
       setImages((prev) => {
         const updated = [...newImages, ...prev];
-        _imagesCache.set(folderId, updated);
+        _cache.set(folderId, updated);
         return updated;
       });
     }
 
     setUploading(false);
-
     if (errors.length === files.length) throw new Error(errors[0]);
-  };
+  }, [folderId]);
 
-  // ── Delete ──────────────────────────────────────────────────────────────────
-  const deleteImage = async (id: string): Promise<void> => {
+  // ── Delete ─────────────────────────────────────────────────────────────────
+  const deleteImage = useCallback(async (id: string): Promise<void> => {
     const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
     const { data, error } = await safeJson<{ error?: string }>(res);
-    if (!res.ok) throw new Error(error ?? data?.error ?? "Failed to delete image");
+    if (!res.ok) throw new Error(error ?? data?.error ?? "Failed to delete");
     setImages((prev) => {
       const updated = prev.filter((img) => img._id !== id);
-      if (folderId) _imagesCache.set(folderId, updated);
+      if (folderId) _cache.set(folderId, updated);
       return updated;
     });
-  };
+  }, [folderId]);
 
-  // ── Update ──────────────────────────────────────────────────────────────────
-  const updateImage = async (
+  // ── Update ─────────────────────────────────────────────────────────────────
+  const updateImage = useCallback(async (
     id: string,
     updates: { productName?: string; productPrice?: number | null; file?: File }
   ): Promise<void> => {
     let res: Response;
     try {
       if (updates.file) {
-        const formData = new FormData();
-        formData.append("image", updates.file);
-        if (updates.productName !== undefined) formData.append("productName", updates.productName);
+        const fd = new FormData();
+        fd.append("image", updates.file);
+        if (updates.productName !== undefined) fd.append("productName", updates.productName);
         if (updates.productPrice !== undefined)
-          formData.append("productPrice", updates.productPrice == null ? "" : String(updates.productPrice));
-        res = await fetch(`/api/images/${id}`, { method: "PATCH", body: formData });
+          fd.append("productPrice", updates.productPrice == null ? "" : String(updates.productPrice));
+        res = await fetch(`/api/images/${id}`, { method: "PATCH", body: fd });
       } else {
         res = await fetch(`/api/images/${id}`, {
           method: "PATCH",
@@ -235,30 +201,18 @@ export function useImages(folderId: string | null) {
           body: JSON.stringify({ productName: updates.productName, productPrice: updates.productPrice }),
         });
       }
-    } catch {
-      throw new Error("Network error — check your connection and try again.");
-    }
+    } catch { throw new Error("Network error — check your connection."); }
 
     const { data, error } = await safeJson<{ image?: CatalogImage; error?: string }>(res);
     if (!res.ok) throw new Error(error ?? data?.error ?? `Update failed (${res.status})`);
     if (data?.image) {
       setImages((prev) => {
-        const updated = prev.map((img) => (img._id === id ? { ...img, ...data.image } : img));
-        if (folderId) _imagesCache.set(folderId, updated);
+        const updated = prev.map((img) => img._id === id ? { ...img, ...data.image } : img);
+        if (folderId) _cache.set(folderId, updated);
         return updated;
       });
     }
-  };
+  }, [folderId]);
 
-  return {
-    images,
-    loading,
-    uploading,
-    uploadProgress,
-    error,
-    fetchImages,
-    uploadImages,
-    deleteImage,
-    updateImage,
-  };
+  return { images, loading, uploading, uploadProgress, error, uploadImages, deleteImage, updateImage };
 }

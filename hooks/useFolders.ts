@@ -10,62 +10,69 @@ export interface Folder {
 }
 
 // ─── Module-level cache ───────────────────────────────────────────────────────
-let _foldersCache: Folder[] | null = null;
-let _fetchPromise: Promise<Folder[]> | null = null;
+let _cache: Folder[] | null = null;
+let _inflight: Promise<Folder[]> | null = null;
 
-async function fetchFoldersOnce(): Promise<Folder[]> {
-  if (_foldersCache !== null) return _foldersCache;
-  if (_fetchPromise) return _fetchPromise;
+async function fetchFolders(): Promise<Folder[]> {
+  if (_cache !== null) return _cache;
+  if (_inflight) return _inflight;
 
-  _fetchPromise = (async () => {
-    const res = await fetch("/api/folders");
-    if (!res.ok) throw new Error("Failed to fetch folders");
-    const data = await res.json();
-    _foldersCache = data.folders as Folder[];
-    _fetchPromise = null;
-    return _foldersCache!;
-  })();
+  _inflight = fetch("/api/folders")
+    .then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    })
+    .then((d) => {
+      _cache = d.folders as Folder[];
+      _inflight = null;
+      return _cache!;
+    })
+    .catch((e) => {
+      _inflight = null;
+      throw e;
+    });
 
-  return _fetchPromise;
+  return _inflight;
 }
 
 export function useFolders() {
-  // Initialise directly from cache — no loading flash if data is already there
-  const [folders, setFolders] = useState<Folder[]>(() => _foldersCache ?? []);
-  const [loading, setLoading] = useState<boolean>(() => _foldersCache === null);
-  const [error, setError] = useState<string | null>(null);
-  const mountedRef = useRef(true);
+  const [folders, setFolders] = useState<Folder[]>(() => _cache ?? []);
+  const [loading, setLoading] = useState<boolean>(() => _cache === null);
+  const [error, setError]     = useState<string | null>(null);
+  const mounted = useRef(true);
 
   useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    mounted.current = true;
+    return () => { mounted.current = false; };
   }, []);
 
-  const fetchFolders = useCallback(async () => {
-    // Already cached — show instantly, no spinner
-    if (_foldersCache !== null) {
-      setFolders(_foldersCache);
+  useEffect(() => {
+    // Already cached — nothing to do
+    if (_cache !== null) {
+      setFolders(_cache);
       setLoading(false);
       return;
     }
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchFoldersOnce();
-      if (mountedRef.current) setFolders(data);
-    } catch (err) {
-      if (mountedRef.current)
-        setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
-  }, []);
 
-  useEffect(() => {
-    fetchFolders();
-  }, [fetchFolders]);
+    let cancelled = false;
+    fetchFolders()
+      .then((data) => {
+        if (!cancelled && mounted.current) {
+          setFolders(data);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled && mounted.current) {
+          setError(err instanceof Error ? err.message : "Failed to load folders");
+          setLoading(false);
+        }
+      });
 
-  const createFolder = async (name: string): Promise<Folder | null> => {
+    return () => { cancelled = true; };
+  }, []); // runs once on mount
+
+  const createFolder = useCallback(async (name: string): Promise<Folder | null> => {
     const res = await fetch("/api/folders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -73,13 +80,13 @@ export function useFolders() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to create folder");
-    const newFolder: Folder = data.folder;
-    _foldersCache = _foldersCache ? [newFolder, ..._foldersCache] : [newFolder];
-    setFolders((prev) => [newFolder, ...prev]);
-    return newFolder;
-  };
+    const f: Folder = data.folder;
+    _cache = _cache ? [f, ..._cache] : [f];
+    setFolders((prev) => [f, ...prev]);
+    return f;
+  }, []);
 
-  const renameFolder = async (id: string, name: string): Promise<void> => {
+  const renameFolder = useCallback(async (id: string, name: string): Promise<void> => {
     const res = await fetch(`/api/folders/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -88,19 +95,17 @@ export function useFolders() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to rename folder");
     const updated: Folder = data.folder;
-    if (_foldersCache)
-      _foldersCache = _foldersCache.map((f) => (f._id === id ? updated : f));
-    setFolders((prev) => prev.map((f) => (f._id === id ? updated : f)));
-  };
+    if (_cache) _cache = _cache.map((f) => f._id === id ? updated : f);
+    setFolders((prev) => prev.map((f) => f._id === id ? updated : f));
+  }, []);
 
-  const deleteFolder = async (id: string): Promise<void> => {
+  const deleteFolder = useCallback(async (id: string): Promise<void> => {
     const res = await fetch(`/api/folders/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to delete folder");
-    if (_foldersCache)
-      _foldersCache = _foldersCache.filter((f) => f._id !== id);
+    if (_cache) _cache = _cache.filter((f) => f._id !== id);
     setFolders((prev) => prev.filter((f) => f._id !== id));
-  };
+  }, []);
 
-  return { folders, loading, error, fetchFolders, createFolder, renameFolder, deleteFolder };
+  return { folders, loading, error, createFolder, renameFolder, deleteFolder };
 }
