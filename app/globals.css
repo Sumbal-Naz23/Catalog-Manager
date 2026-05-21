@@ -14,63 +14,75 @@
   --gray-400: #9e9b8e;
   --gray-600: #6b6860;
   --gray-800: #2a2925;
+
+  /*
+    System font stacks — zero network requests, renders instantly.
+
+    --font-sans  : used for all body text (replaces Poppins)
+    --font-serif : used for logo / display headings (replaces Playfair Display)
+
+    On iOS/macOS  → SF Pro / New York
+    On Android    → Roboto / Noto Serif
+    On Windows    → Segoe UI / Georgia
+    On Linux      → DejaVu Sans / DejaVu Serif
+  */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "New York", "Palatino Linotype", Palatino, "Book Antiqua",
+                Georgia, "Times New Roman", serif;
 }
 
 /* ─── Base ───────────────────────────────────────────────────── */
-* {
+*, *::before, *::after {
+  box-sizing: border-box;
+  touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
 html {
-  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
-  font-family: 'Poppins', sans-serif;
+  font-family: var(--font-sans);
   background-color: var(--white);
   color: var(--black);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* ─── Script / Logo Font ─────────────────────────────────────── */
+/* ─── Display / Script font classes ─────────────────────────── */
+/*
+  .font-script  → italic serif  (was Playfair Display italic)
+  .font-display → upright serif (was Playfair Display regular)
+
+  Both now use the native serif stack — no download, no swap, no flash.
+*/
 .font-script {
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-serif);
   font-style: italic;
+  /* Slightly tighter tracking to match Playfair's feel */
+  letter-spacing: 0.01em;
 }
 
 .font-display {
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-serif);
+  font-style: normal;
 }
 
 /* ─── Gold Accent ────────────────────────────────────────────── */
-.text-gold {
-  color: var(--gold);
-}
-
-.bg-gold {
-  background-color: var(--gold);
-}
-
-.border-gold {
-  border-color: var(--gold);
-}
+.text-gold   { color: var(--gold); }
+.bg-gold     { background-color: var(--gold); }
+.border-gold { border-color: var(--gold); }
 
 /* ─── Scrollbar ──────────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--gray-200);
-  border-radius: 999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--gold);
-}
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 
 /* ─── Focus Ring ─────────────────────────────────────────────── */
 :focus-visible {
@@ -78,45 +90,41 @@ body {
   outline-offset: 2px;
 }
 
+/* ─── Reduced motion ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* ─── Animations ─────────────────────────────────────────────── */
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fade-in-scale {
-  from { opacity: 0; transform: scale(0.96); }
+  from { opacity: 0; transform: scale(0.97); }
   to   { opacity: 1; transform: scale(1); }
 }
 
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes gold-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4); }
-  50%       { box-shadow: 0 0 0 8px rgba(212, 175, 55, 0); }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.5s ease forwards;
-}
-
-.animate-fade-in-scale {
-  animation: fade-in-scale 0.3s ease forwards;
+  100% { background-position:  200% 0; }
 }
 
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(24px); }
+  from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.animate-slide-up {
-  animation: slide-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
+.animate-fade-in       { animation: fade-in 0.35s ease forwards; }
+.animate-fade-in-scale { animation: fade-in-scale 0.25s ease forwards; }
+.animate-slide-up      { animation: slide-up 0.25s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
 
-/* ─── Luxury Skeleton ────────────────────────────────────────── */
+/* ─── Skeleton loader ────────────────────────────────────────── */
 .skeleton {
   background: linear-gradient(
     90deg,
@@ -125,7 +133,8 @@ body {
     var(--gray-100) 75%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.2s infinite;
+  will-change: background-position;
 }
 
 /* ─── Gold Divider ───────────────────────────────────────────── */
@@ -134,17 +143,20 @@ body {
   background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
 
-/* ─── Image hover zoom ───────────────────────────────────────── */
+/* ─── Image hover zoom (pointer devices only) ────────────────── */
 .img-zoom {
-  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
 }
-.img-zoom:hover {
-  transform: scale(1.06);
+@media (hover: hover) {
+  .img-zoom:hover { transform: scale(1.06); }
 }
 
-/* ─── Button gold glow ───────────────────────────────────────── */
-.btn-gold-glow:hover {
-  box-shadow: 0 0 20px rgba(212, 175, 55, 0.35), 0 4px 16px rgba(0,0,0,0.15);
+/* ─── Button gold glow (pointer devices only) ────────────────── */
+@media (hover: hover) {
+  .btn-gold-glow:hover {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.35), 0 4px 16px rgba(0,0,0,0.15);
+  }
 }
 
 /* ─── Sidebar active gold bar ────────────────────────────────── */
@@ -160,16 +172,23 @@ body {
   border-radius: 0 2px 2px 0;
 }
 
-/* ─── Luxury card ────────────────────────────────────────────── */
+/* ─── Luxury card (pointer devices only) ────────────────────── */
 .luxury-card {
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
-.luxury-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+@media (hover: hover) {
+  .luxury-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  }
 }
 
 /* ─── Overlay fade ───────────────────────────────────────────── */
 .overlay-fade {
-  transition: opacity 0.3s ease, background-color 0.3s ease;
+  transition: opacity 0.25s ease, background-color 0.25s ease;
+}
+
+/* ─── Safe area for notched phones ──────────────────────────── */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
 }

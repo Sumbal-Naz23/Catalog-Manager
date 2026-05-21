@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 
-// Permanent redirect — browser caches this so subsequent visits
-// go straight to /dashboard with zero server round-trip
+// Redirect / → /dashboard.
+// force-static makes Next.js emit this as a static HTML file with a
+// <meta http-equiv="refresh"> + JS redirect — no server round-trip needed.
+export const dynamic = "force-static";
+
 export default function Page() {
   redirect("/dashboard");
 }
-
-export const dynamic = "force-static";

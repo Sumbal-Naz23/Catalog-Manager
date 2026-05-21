@@ -2,12 +2,12 @@
   "name": "D.K Collection",
   "short_name": "D.K",
   "description": "Luxury in Every Detail — Premium Catalog Manager",
-  "start_url": "/",
+  "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
   "orientation": "portrait-primary",
-
   "icons": [
     {
       "src": "/icon-192.png",
@@ -19,16 +19,8 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
     }
   ],
-
-  "categories": ["lifestyle", "productivity"],
-  "screenshots": []
+  "categories": ["lifestyle", "productivity"]
 }

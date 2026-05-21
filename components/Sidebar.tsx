@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo, useCallback } from "react";
 import Link from "next/link";
 import { Folder } from "@/hooks/useFolders";
 
@@ -229,12 +229,11 @@ export default function Sidebar({
                     <button
                       onClick={() => { onSelectFolder(folder._id); onClose(); }}
                       onContextMenu={(e) => handleContextMenu(e, folder._id)}
-                      className={`relative w-full flex items-center gap-3 px-3 py-3 text-left transition-all duration-200 group${
+                      className={`relative w-full flex items-center gap-3 px-3 py-3 text-left transition-all duration-200 group ${
                         selectedFolderId === folder._id
                           ? "sidebar-active bg-white/5 text-white"
                           : "text-white hover:bg-white/5"
                       }`}
-             
                     >
                       {/* Gold left bar for active */}
                       {selectedFolderId === folder._id && (
