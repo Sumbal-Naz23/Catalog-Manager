@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useCallback, memo } from "react";
+import { useState, useCallback, memo, useEffect } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import Sidebar from "@/components/Sidebar";
 import Toast, { ToastMessage } from "@/components/Toast";
 import { useFolders } from "@/hooks/useFolders";
 import { useImages } from "@/hooks/useImages";
+
+const SIDEBAR_PREF_KEY = "dk_sidebar_open";
 
 // ── Lazy-load heavy components — they're not needed for first paint ───────────
 const ImageGrid = dynamic(() => import("@/components/ImageGrid"), {
@@ -71,9 +73,32 @@ const EmptyState = memo(function EmptyState({
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
-  // Start sidebar closed on mobile — opening it costs a repaint.
-  // On desktop (lg+) it's always visible via CSS regardless of this state.
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Default: open (true). After mount, read the user's saved preference.
+  // Initializing to `true` means the sidebar is visible on first paint —
+  // no flash, no hydration mismatch (server and client both start as true).
+  // If the user previously closed it, we correct to false after mount.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_PREF_KEY);
+      // Only override if user explicitly set it to "false"
+      if (saved === "false") setSidebarOpen(false);
+    } catch {
+      // localStorage unavailable (private mode, etc.) — keep default open
+    }
+  }, []);
+
+  const openSidebar = useCallback(() => {
+    setSidebarOpen(true);
+    try { localStorage.setItem(SIDEBAR_PREF_KEY, "true"); } catch {}
+  }, []);
+
+  const closeSidebar = useCallback(() => {
+    setSidebarOpen(false);
+    try { localStorage.setItem(SIDEBAR_PREF_KEY, "false"); } catch {}
+  }, []);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -211,8 +236,6 @@ export default function DashboardPage() {
     [deleteImage, addToast]
   );
 
-  const openSidebar  = useCallback(() => setSidebarOpen(true),  []);
-  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
   const closeConfirm = useCallback(
     () => setConfirmDialog((prev) => ({ ...prev, isOpen: false })),
     []

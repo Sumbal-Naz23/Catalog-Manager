@@ -236,7 +236,7 @@ export default function Sidebar({
                     </div>
                   ) : (
                     <button
-                      onClick={() => { onSelectFolder(folder._id); onClose(); }}
+                      onClick={() => { onSelectFolder(folder._id); }}
                       onContextMenu={(e) => handleContextMenu(e, folder._id)}
                       className={`relative w-full flex items-center gap-3 px-3 py-3 text-left transition-all duration-200 group ${
                         selectedFolderId === folder._id
