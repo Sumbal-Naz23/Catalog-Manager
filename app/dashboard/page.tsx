@@ -71,7 +71,9 @@ const EmptyState = memo(function EmptyState({
 // ─────────────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Start sidebar closed on mobile — opening it costs a repaint.
+  // On desktop (lg+) it's always visible via CSS regardless of this state.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;

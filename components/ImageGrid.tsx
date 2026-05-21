@@ -463,19 +463,19 @@ function Lightbox({ images, initialIndex, onClose }: LightboxProps) {
         {/* Right controls — pointer-events re-enabled */}
         <div className="flex items-center gap-1.5 pointer-events-auto">
           <button onClick={zoomOut} disabled={zoom <= MIN_ZOOM}
-            className="w-8 h-8 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/50 transition-all duration-200 disabled:opacity-20 disabled:cursor-not-allowed bg-black/40 backdrop-blur-sm"
+            className="w-8 h-8 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/50 transition-all duration-200 disabled:opacity-20 disabled:cursor-not-allowed bg-black/60"
             aria-label="Zoom out">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6" /></svg>
           </button>
           <span className="text-white/30 text-[10px] tracking-widest w-9 text-center font-light">{Math.round(zoom * 100)}%</span>
           <button onClick={zoomIn} disabled={zoom >= MAX_ZOOM}
-            className="w-8 h-8 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/50 transition-all duration-200 disabled:opacity-20 disabled:cursor-not-allowed bg-black/40 backdrop-blur-sm"
+            className="w-8 h-8 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/50 transition-all duration-200 disabled:opacity-20 disabled:cursor-not-allowed bg-black/60"
             aria-label="Zoom in">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6" /></svg>
           </button>
           <div className="w-px h-4 bg-white/15 mx-0.5" />
           <button onClick={onClose}
-            className="w-8 h-8 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/50 transition-all duration-200 bg-black/40 backdrop-blur-sm"
+            className="w-8 h-8 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:border-white/50 transition-all duration-200 bg-black/60"
             aria-label="Close">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -512,13 +512,13 @@ function Lightbox({ images, initialIndex, onClose }: LightboxProps) {
         <>
           <button
             onClick={() => navigate("prev")}
-            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 border border-white/20 flex items-center justify-center text-white/50 hover:text-white hover:border-white/60 hover:bg-white/10 transition-all duration-200 bg-black/30 backdrop-blur-sm"
+            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 border border-white/20 flex items-center justify-center text-white/50 hover:text-white hover:border-white/60 hover:bg-white/10 transition-all duration-200 bg-black/50"
             aria-label="Previous image">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
           </button>
           <button
             onClick={() => navigate("next")}
-            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 border border-white/20 flex items-center justify-center text-white/50 hover:text-white hover:border-white/60 hover:bg-white/10 transition-all duration-200 bg-black/30 backdrop-blur-sm"
+            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 border border-white/20 flex items-center justify-center text-white/50 hover:text-white hover:border-white/60 hover:bg-white/10 transition-all duration-200 bg-black/50"
             aria-label="Next image">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
           </button>
@@ -529,7 +529,7 @@ function Lightbox({ images, initialIndex, onClose }: LightboxProps) {
       <div className="absolute bottom-0 left-0 right-0 z-20 flex flex-col items-center gap-2 pb-3 pt-8 bg-gradient-to-t from-black/75 to-transparent pointer-events-none">
         {/* Product info pill */}
         {hasProductInfo && (
-          <div className="flex items-center gap-3 px-4 py-2 bg-black/50 border border-white/10 backdrop-blur-sm pointer-events-auto">
+          <div className="flex items-center gap-3 px-4 py-2 bg-black/70 border border-white/10 pointer-events-auto">
             {current.productName && (
               <span className="text-white text-sm font-light tracking-wide">{current.productName}</span>
             )}
@@ -705,8 +705,7 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
           {images.map((img, index) => (
             <div
               key={img._id}
-              className="group relative bg-white border border-gray-100 overflow-hidden animate-fade-in shadow-sm hover:shadow-md transition-shadow duration-300"
-              style={{ animationDelay: `${Math.min(index * 40, 400)}ms` }}
+              className="group relative bg-white border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300"
             >
               {/* Image square */}
               <div

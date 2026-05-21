@@ -1,33 +1,32 @@
-// ─── Service Worker — v3 ─────────────────────────────────────────────────────
-// Bumping the version clears the old stale cache that was causing
-// infinite reload loops on mobile (old SW was serving stale HTML that
-// triggered a fresh navigation, which the SW served stale again → loop).
-const CACHE_VERSION = "v3";
+// ─── Service Worker v4 ───────────────────────────────────────────────────────
+const CACHE_VERSION = "v4";
 const STATIC_CACHE  = `static-${CACHE_VERSION}`;
 const IMAGE_CACHE   = `images-${CACHE_VERSION}`;
 
-const PRECACHE_URLS = ["/manifest.json"];
-
 // ── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
-  // Skip waiting immediately — don't hold onto old SW
+  // Skip waiting immediately — activate right away without waiting for tabs to close
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE_URLS))
-  );
+  // No precache network requests — they block SW activation and slow first load.
+  // Assets are cached on first use instead (see fetch handler below).
 });
 
 // ── Activate ──────────────────────────────────────────────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
+    caches.keys()
+      .then((keys) => Promise.all(
         keys
           .filter((k) => k !== STATIC_CACHE && k !== IMAGE_CACHE)
           .map((k) => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
+      ))
+      .then(() => self.clients.claim())
   );
+});
+
+// ── Message handler (for SKIP_WAITING from layout.tsx) ───────────────────────
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -35,35 +34,22 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 1. Never intercept non-GET or cross-origin requests
+  // Only handle GET requests from same origin
   if (request.method !== "GET" || url.origin !== self.location.origin) return;
 
-  // 2. Never cache API calls — always go to network
+  // Never intercept API calls — always fresh from network
   if (url.pathname.startsWith("/api/")) return;
 
-  // 3. Never cache Next.js internal routes (_next/webpack-hmr, etc.)
+  // Never intercept HMR websocket or webpack internals
   if (url.pathname.startsWith("/_next/webpack")) return;
 
-  // 4. Cloudinary images — cache-first with long TTL
-  if (url.hostname === "res.cloudinary.com") {
-    event.respondWith(
-      caches.open(IMAGE_CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        const res = await fetch(request);
-        if (res.ok) cache.put(request, res.clone());
-        return res;
-      })
-    );
-    return;
-  }
-
-  // 5. Next.js static assets (_next/static) — cache-first (they're content-hashed)
+  // ── Next.js static assets: cache-first, populate on first use ────────────
+  // These are content-hashed so they never go stale.
   if (url.pathname.startsWith("/_next/static/")) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
-        const cached = await cache.match(request);
-        if (cached) return cached;
+        const hit = await cache.match(request);
+        if (hit) return hit;
         const res = await fetch(request);
         if (res.ok) cache.put(request, res.clone());
         return res;
@@ -72,18 +58,26 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 6. HTML navigation — NETWORK FIRST, no caching of HTML pages.
-  //    This is the critical fix: caching HTML caused the mobile reload loop
-  //    because the SW served stale HTML that pointed to old JS chunks.
+  // ── HTML navigation: network-first, NO HTML caching ──────────────────────
+  // Caching HTML causes the mobile reload loop (stale HTML → wrong JS hashes).
   if (request.mode === "navigate") {
+    event.respondWith(fetch(request).catch(() => caches.match(request)));
+    return;
+  }
+
+  // ── manifest.json / icons: cache-first ───────────────────────────────────
+  if (url.pathname === "/manifest.json" || url.pathname.startsWith("/icons/")) {
     event.respondWith(
-      fetch(request).catch(() =>
-        // Only fall back to cache if completely offline
-        caches.match(request)
-      )
+      caches.open(STATIC_CACHE).then(async (cache) => {
+        const hit = await cache.match(request);
+        if (hit) return hit;
+        const res = await fetch(request);
+        if (res.ok) cache.put(request, res.clone());
+        return res;
+      })
     );
     return;
   }
 
-  // 7. Everything else — network only (safe default)
+  // Everything else: network only (safe default)
 });

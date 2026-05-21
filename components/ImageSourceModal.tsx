@@ -82,7 +82,7 @@ export default function ImageSourceModal({ onFilesSelected, onClose }: ImageSour
 />
 
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in" />
+      <div className="absolute inset-0 bg-black/75 animate-fade-in" />
 
       {/* Sheet */}
       <div className="relative w-full sm:w-auto sm:min-w-[340px] sm:max-w-sm animate-slide-up">

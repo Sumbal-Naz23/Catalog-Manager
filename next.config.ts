@@ -1,12 +1,5 @@
 import type { NextConfig } from "next";
 
-const withPWA = require("next-pwa")({
-  dest: "public",
-  register: true,
-  skipWaiting: true,
-  disable: process.env.NODE_ENV === "development",
-});
-
 const nextConfig: NextConfig = {
   // ── Images ────────────────────────────────────────────────────────────────
   images: {
@@ -16,7 +9,7 @@ const nextConfig: NextConfig = {
     dangerouslyAllowSVG: false,
   },
 
-  // ── Server packages (must run in Node, not Edge) ──────────────────────────
+  // ── Server packages ───────────────────────────────────────────────────────
   serverExternalPackages: ["mongoose"],
 
   // ── Compiler ─────────────────────────────────────────────────────────────
@@ -28,25 +21,26 @@ const nextConfig: NextConfig = {
 
   // ── Experimental ─────────────────────────────────────────────────────────
   experimental: {
-    // Tree-shake these packages at import time — reduces bundle size
     optimizePackageImports: ["react", "react-dom"],
+    // inlineCss removed — causes hydration mismatches on some Next.js versions
+  },
+
+  // ── Redirects ─────────────────────────────────────────────────────────────
+  async redirects() {
+    return [
+      { source: "/", destination: "/dashboard", permanent: true },
+    ];
   },
 
   // ── HTTP Cache Headers ────────────────────────────────────────────────────
   async headers() {
     const isProd = process.env.NODE_ENV === "production";
     return [
-      // Next.js static assets are content-hashed — safe to cache forever
-      ...(isProd
-        ? [
-            {
-              source: "/_next/static/:path*",
-              headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-            },
-          ]
-        : []),
+      ...(isProd ? [{
+        source: "/_next/static/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      }] : []),
       {
-        // sw.js: never cache — must always be fresh for SW updates to work
         source: "/sw.js",
         headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }],
       },
@@ -59,7 +53,6 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=86400" }],
       },
       {
-        // API responses: never cache at CDN/proxy level
         source: "/api/:path*",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
@@ -69,4 +62,4 @@ const nextConfig: NextConfig = {
   turbopack: {},
 };
 
-module.exports = withPWA(nextConfig);
+module.exports = nextConfig;

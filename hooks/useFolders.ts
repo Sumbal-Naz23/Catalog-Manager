@@ -13,7 +13,17 @@ export interface Folder {
 let _cache: Folder[] | null = null;
 let _inflight: Promise<Folder[]> | null = null;
 
-async function fetchFolders(): Promise<Folder[]> {
+/**
+ * Called by DashboardClient (server component wrapper) to pre-populate
+ * the cache with server-fetched folders before any client render.
+ * This makes useFolders() start with loading=false and real data.
+ */
+export function seedFoldersCache(folders: Folder[]) {
+  _cache = folders;
+  _inflight = null;
+}
+
+async function fetchFoldersFromAPI(): Promise<Folder[]> {
   if (_cache !== null) return _cache;
   if (_inflight) return _inflight;
 
@@ -36,6 +46,8 @@ async function fetchFolders(): Promise<Folder[]> {
 }
 
 export function useFolders() {
+  // If cache is already seeded (by DashboardClient), start with real data
+  // and loading=false — zero loading flash, zero network request on mount
   const [folders, setFolders] = useState<Folder[]>(() => _cache ?? []);
   const [loading, setLoading] = useState<boolean>(() => _cache === null);
   const [error, setError]     = useState<string | null>(null);
@@ -47,15 +59,16 @@ export function useFolders() {
   }, []);
 
   useEffect(() => {
-    // Already cached — nothing to do
+    // Cache already populated (seeded by server or previous fetch) — done
     if (_cache !== null) {
       setFolders(_cache);
       setLoading(false);
       return;
     }
 
+    // Fallback: fetch from API (happens if server fetch failed or on direct /dashboard visit)
     let cancelled = false;
-    fetchFolders()
+    fetchFoldersFromAPI()
       .then((data) => {
         if (!cancelled && mounted.current) {
           setFolders(data);
@@ -70,7 +83,7 @@ export function useFolders() {
       });
 
     return () => { cancelled = true; };
-  }, []); // runs once on mount
+  }, []);
 
   const createFolder = useCallback(async (name: string): Promise<Folder | null> => {
     const res = await fetch("/api/folders", {

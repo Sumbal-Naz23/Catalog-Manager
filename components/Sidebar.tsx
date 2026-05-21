@@ -45,10 +45,12 @@ export default function Sidebar({
   }, [renamingId]);
 
   useEffect(() => {
+    if (!contextMenu) return;
+    // Use capture:false and passive:true — cheaper on mobile
     const handler = () => setContextMenu(null);
-    document.addEventListener("click", handler);
+    document.addEventListener("click", handler, { passive: true });
     return () => document.removeEventListener("click", handler);
-  }, []);
+  }, [contextMenu]);
 
   const handleCreate = async () => {
     if (!newFolderName.trim()) return;
@@ -86,19 +88,26 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile overlay — NO backdrop-blur (GPU-expensive on low-end Android).
+          Simple semi-transparent black is just as effective and costs nothing. */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-20 lg:hidden"
+          className="fixed inset-0 bg-black/60 z-20 lg:hidden"
           onClick={onClose}
+          aria-hidden="true"
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — translate3d forces its own compositor layer so sliding
+          doesn't repaint the main content. backface-visibility:hidden
+          prevents flicker on older Android WebView. */}
       <aside
-        className={`fixed top-0 left-0 h-full w-72 bg-black z-30 flex flex-col transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:z-auto ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed top-0 left-0 h-full w-72 bg-black z-30 flex flex-col
+          transition-transform duration-300 ease-in-out
+          lg:relative lg:z-auto lg:translate-x-0
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          sidebar-panel`}
+        style={{ WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-6 border-b border-white/10">
