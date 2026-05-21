@@ -101,15 +101,10 @@ export default function DashboardPage() {
     try { localStorage.setItem(SIDEBAR_PREF_KEY, "false"); } catch {}
   }, []);
 
-  // Does NOT persist — used when a folder is selected so next launch still opens
-  const closeSidebarSilent = useCallback(() => {
-    setSidebarOpen(false);
-  }, []);
-
+  // Selecting a folder — sidebar stays open
   const handleSelectFolder = useCallback((id: string) => {
     setSelectedFolderId(id);
-    closeSidebarSilent();
-  }, [closeSidebarSilent]);
+  }, []);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
