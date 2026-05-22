@@ -101,11 +101,14 @@ export default function DashboardPage() {
     try { localStorage.setItem(SIDEBAR_PREF_KEY, "false"); } catch {}
   }, []);
 
-  // Selecting a folder — close sidebar on mobile (smooth slide away),
-  // but do NOT persist this to localStorage so next launch opens by default.
+  // Selecting a folder:
+  // - Mobile: close sidebar so content becomes visible
+  // - Desktop: keep sidebar open (it's a permanent panel, not an overlay)
   const handleSelectFolder = useCallback((id: string) => {
     setSelectedFolderId(id);
-    setSidebarOpen(false); // closes on mobile; desktop ignores this via lg:translate-x-0 CSS
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
   }, []);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{

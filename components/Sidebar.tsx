@@ -88,8 +88,7 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Mobile overlay — NO backdrop-blur (GPU-expensive on low-end Android).
-          Simple semi-transparent black is just as effective and costs nothing. */}
+      {/* Overlay — mobile only, dims content behind the sidebar */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/60 z-20 lg:hidden"
@@ -98,15 +97,19 @@ export default function Sidebar({
         />
       )}
 
-      {/* Sidebar — translate3d forces its own compositor layer so sliding
-          doesn't repaint the main content. backface-visibility:hidden
-          prevents flicker on older Android WebView. */}
+      {/*
+        Desktop (lg+): relative position, always visible, part of the flex layout.
+        Mobile (<lg):  fixed overlay, slides in/out based on isOpen.
+        The lg:* classes override the mobile fixed/translate behaviour.
+      */}
       <aside
-        className={`fixed top-0 left-0 h-full w-72 bg-black z-30 flex flex-col
+        className={`
+          bg-black flex flex-col z-30 sidebar-panel
           transition-transform duration-300 ease-in-out
-          lg:relative lg:z-auto lg:translate-x-0
+          fixed top-0 left-0 h-full w-72
+          lg:relative lg:translate-x-0 lg:flex lg:flex-shrink-0
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
-          sidebar-panel`}
+        `}
         style={{ WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }}
       >
         {/* Header */}
@@ -121,7 +124,7 @@ export default function Sidebar({
           </Link>
           <button
             onClick={onClose}
-            className="lg:hidden p-1.5 transition-colors"
+            className="lg:hidden p-1.5 text-white/60 hover:text-white transition-colors"
             aria-label="Close sidebar"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
