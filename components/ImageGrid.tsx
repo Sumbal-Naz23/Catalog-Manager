@@ -631,10 +631,12 @@ export default function ImageGrid({ images, loading, uploading, uploadProgress, 
   };
 
   const handleWhatsAppShare = (img: CatalogImage) => {
+    const base = process.env.NEXT_PUBLIC_BASE_URL ?? "";
+    const productUrl = `${base}/product/${img._id}`;
     const lines: string[] = [];
     if (img.productName) lines.push(`🛍️ *${img.productName}*`);
     if (img.productPrice != null) lines.push(`💰 ${formatPrice(img.productPrice)}`);
-    lines.push(`🔗 ${img.url}`);
+    lines.push(productUrl);
     const text = encodeURIComponent(lines.join("\n"));
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   };
